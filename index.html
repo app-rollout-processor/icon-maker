@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AppIcon Forge — iOS & Android Asset Generator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"
+          integrity="sha512-XMVd28F1oH/O71fzwBnV7HucLxVwtxf26XV8P4wPk26EDxuGZ91N8bsOttmnomcCD3CS5ZMRL50H0GgOHveXg=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --purple: #7c3aed;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --radius: 14px;
+      --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.05);
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, var(--primary-dark) 0%, var(--purple) 100%);
+      color: #fff;
+      padding: 56px 24px 48px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    header::before {
+      content: '';
+      position: absolute;
+      inset: -50%;
+      background: radial-gradient(ellipse at 30% 40%, rgba(255,255,255,.08) 0%, transparent 60%),
+                  radial-gradient(ellipse at 70% 80%, rgba(255,255,255,.05) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .header-icon { font-size: 3.5rem; margin-bottom: 12px; display: block; }
+    header h1 { font-size: 2.6rem; font-weight: 800; letter-spacing: -1px; }
+    header p  { margin-top: 8px; font-size: 1.05rem; opacity: .82; max-width: 540px; margin-inline: auto; }
+    .badge-row {
+      display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 18px;
+    }
+    .badge {
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.25);
+      padding: 4px 14px; border-radius: 100px;
+      font-size: .78rem; font-weight: 600; letter-spacing: .3px;
+    }
+
+    /* ── Layout ── */
+    main { max-width: 920px; margin: 0 auto; padding: 32px 20px 64px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .card-title {
+      font-size: 1rem; font-weight: 700; margin-bottom: 22px;
+      display: flex; align-items: center; gap: 10px; color: var(--text);
+    }
+    .step-num {
+      background: var(--primary); color: #fff;
+      width: 26px; height: 26px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: .78rem; font-weight: 700; flex-shrink: 0;
+    }
+    .step-num.done { background: var(--success); }
+
+    /* ── Upload ── */
+    #drop-zone {
+      border: 2px dashed var(--border); border-radius: var(--radius);
+      padding: 52px 24px; text-align: center; cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    #drop-zone:hover, #drop-zone.over {
+      border-color: var(--primary); background: #f5f3ff;
+    }
+    #drop-zone .drop-icon { font-size: 2.8rem; margin-bottom: 12px; }
+    #drop-zone p { color: var(--muted); font-size: .95rem; }
+    #drop-zone .browse-btn {
+      background: none; border: none; color: var(--primary);
+      font-weight: 600; cursor: pointer; font-size: .95rem; text-decoration: underline;
+    }
+    #drop-zone .hint { font-size: .8rem; margin-top: 6px; }
+    #file-input { display: none; }
+
+    #img-preview-wrap {
+      display: none; align-items: center; gap: 16px;
+      padding: 14px 18px; border: 1px solid var(--border);
+      border-radius: 10px; background: #f8fafc;
+    }
+    #preview-thumb {
+      width: 64px; height: 64px; border-radius: 10px;
+      object-fit: cover; border: 1px solid var(--border); flex-shrink: 0;
+    }
+    .preview-meta { flex: 1; min-width: 0; }
+    .preview-meta .fname { font-weight: 600; font-size: .9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .preview-meta .fdims { font-size: .8rem; color: var(--muted); margin-top: 3px; }
+    .preview-warning { font-size: .78rem; color: #d97706; margin-top: 4px; display: none; }
+    .btn-sm {
+      background: #fff; border: 1px solid var(--border); color: var(--muted);
+      padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: .82rem;
+      white-space: nowrap; flex-shrink: 0; transition: background .15s;
+    }
+    .btn-sm:hover { background: #fee2e2; border-color: #fca5a5; color: var(--danger); }
+
+    /* ── Config ── */
+    .config-grid {
+      display: grid; grid-template-columns: 1fr 1fr;
+      gap: 28px 40px;
+    }
+    @media (max-width: 620px) { .config-grid { grid-template-columns: 1fr; } }
+
+    .field-label {
+      display: block; font-size: .75rem; font-weight: 700;
+      color: var(--muted); text-transform: uppercase; letter-spacing: .6px;
+      margin-bottom: 10px;
+    }
+    .check-group { display: flex; flex-direction: column; gap: 9px; }
+    .check-item {
+      display: flex; align-items: flex-start; gap: 9px; cursor: pointer;
+    }
+    .check-item input[type="checkbox"],
+    .check-item input[type="radio"] {
+      width: 16px; height: 16px; margin-top: 2px;
+      accent-color: var(--primary); cursor: pointer; flex-shrink: 0;
+    }
+    .check-item .check-label { font-size: .88rem; }
+    .check-item .check-sub  { font-size: .76rem; color: var(--muted); display: block; margin-top: 1px; }
+
+    .color-row { display: flex; align-items: center; gap: 10px; }
+    input[type="color"] {
+      width: 44px; height: 38px; border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer; padding: 2px; background: #fff;
+    }
+    #color-hex { font-family: 'SF Mono', 'Fira Code', monospace; font-size: .85rem; }
+
+    .range-wrap { position: relative; }
+    input[type="range"] {
+      width: 100%; accent-color: var(--primary); cursor: pointer;
+    }
+    .range-ends {
+      display: flex; justify-content: space-between;
+      font-size: .75rem; color: var(--muted); margin-top: 4px;
+    }
+
+    /* ── Generate ── */
+    #step-generate { text-align: center; }
+    #step-generate .card-title { justify-content: center; }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-dark), var(--purple));
+      color: #fff; border: none; padding: 14px 44px;
+      border-radius: 100px; font-size: 1rem; font-weight: 700;
+      cursor: pointer; transition: opacity .15s, transform .15s;
+      box-shadow: 0 4px 14px rgba(99,102,241,.35);
+    }
+    .btn-primary:hover:not(:disabled) { opacity: .92; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
+    #progress-wrap { display: none; margin-top: 20px; }
+    .progress-track {
+      background: var(--border); border-radius: 100px;
+      height: 8px; overflow: hidden; margin-bottom: 10px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary-dark), var(--purple));
+      border-radius: 100px; width: 0; transition: width .25s;
+    }
+    #progress-label { font-size: .82rem; color: var(--muted); }
+
+    /* ── Results ── */
+    #step-results { display: none; }
+
+    .result-summary {
+      display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px;
+    }
+    .stat-pill {
+      background: #f0fdf4; border: 1px solid #bbf7d0;
+      padding: 8px 16px; border-radius: 100px;
+      font-size: .82rem; font-weight: 600; color: #15803d;
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    .platform-block { margin-bottom: 28px; }
+    .platform-heading {
+      font-size: .78rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .8px;
+      border-bottom: 1px solid var(--border); padding-bottom: 8px;
+      margin-bottom: 14px;
+    }
+    .icon-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+
+    .icon-chip {
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      cursor: default;
+    }
+    .icon-chip canvas {
+      border: 1px solid var(--border); display: block;
+      border-radius: 4px; image-rendering: -webkit-optimize-contrast;
+    }
+    .icon-chip .chip-label { font-size: .65rem; color: var(--muted); text-align: center; }
+
+    .splash-row { display: flex; flex-wrap: wrap; gap: 10px; }
+    .splash-chip {
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+    }
+    .splash-chip canvas {
+      border: 1px solid var(--border); display: block; border-radius: 4px;
+    }
+    .splash-chip .chip-label { font-size: .62rem; color: var(--muted); text-align: center; }
+
+    .result-actions {
+      display: flex; gap: 12px; flex-wrap: wrap;
+      padding-top: 24px; border-top: 1px solid var(--border); margin-top: 8px;
+    }
+    .btn-download {
+      background: var(--success); color: #fff; border: none;
+      padding: 13px 36px; border-radius: 100px;
+      font-size: .95rem; font-weight: 700; cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-download:hover { background: #16a34a; }
+    .btn-secondary {
+      background: #fff; border: 1px solid var(--border); color: var(--muted);
+      padding: 13px 28px; border-radius: 100px;
+      font-size: .88rem; cursor: pointer; transition: background .15s;
+    }
+    .btn-secondary:hover { background: var(--bg); }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center; color: var(--muted); font-size: .78rem;
+      padding: 24px; border-top: 1px solid var(--border);
+    }
+
+    /* ── Util ── */
+    .hidden { display: none !important; }
+    .mt8 { margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="header-icon">⚒️</span>
+  <h1>AppIcon Forge</h1>
+  <p>Generate every icon, splash screen and asset needed for iOS &amp; Android — locally in your browser, no uploads.</p>
+  <div class="badge-row">
+    <span class="badge">iOS</span>
+    <span class="badge">Android</span>
+    <span class="badge">15 icon sizes</span>
+    <span class="badge">20+ splash sizes</span>
+    <span class="badge">ZIP download</span>
+    <span class="badge">100% local</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- Step 1: Upload -->
+  <div class="card" id="card-upload">
+    <div class="card-title">
+      <span class="step-num" id="sn1">1</span>
+      Upload Your Source Image
+    </div>
+
+    <div id="drop-zone" role="button" aria-label="Drop zone for image upload" tabindex="0">
+      <div class="drop-icon">🖼️</div>
+      <p><strong>Drag &amp; drop</strong> your image here</p>
+      <p>or <button class="browse-btn" type="button" id="browse-btn">browse files</button></p>
+      <p class="hint">PNG · JPG · WebP · SVG &nbsp;|&nbsp; Best results: square image ≥ 1024 × 1024 px</p>
+    </div>
+    <input type="file" id="file-input" accept="image/*">
+
+    <div id="img-preview-wrap">
+      <img id="preview-thumb" alt="Uploaded image preview">
+      <div class="preview-meta">
+        <div class="fname" id="preview-fname"></div>
+        <div class="fdims" id="preview-fdims"></div>
+        <div class="preview-warning" id="preview-warn">
+          ⚠️ Image is smaller than 1024 × 1024 — output may appear blurry at larger sizes.
+        </div>
+      </div>
+      <button class="btn-sm" id="btn-remove" type="button">✕ Remove</button>
+    </div>
+  </div>
+
+  <!-- Step 2: Configure -->
+  <div class="card" id="card-config">
+    <div class="card-title">
+      <span class="step-num" id="sn2">2</span>
+      Configure Output
+    </div>
+
+    <div class="config-grid">
+
+      <!-- Platforms -->
+      <div>
+        <span class="field-label">Platforms</span>
+        <div class="check-group">
+          <label class="check-item">
+            <input type="checkbox" id="chk-ios" checked>
+            <span>
+              <span class="check-label"> iOS (iPhone + iPad)</span>
+              <span class="check-sub">Xcode AppIcon.appiconset + launch images</span>
+            </span>
+          </label>
+          <label class="check-item">
+            <input type="checkbox" id="chk-android" checked>
+            <span>
+              <span class="check-label"> Android</span>
+              <span class="check-sub">mipmap-* folders + Play Store icon</span>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Asset types -->
+      <div>
+        <span class="field-label">Asset Types</span>
+        <div class="check-group">
+          <label class="check-item">
+            <input type="checkbox" id="chk-icons" checked>
+            <span>
+              <span class="check-label"> App Icons</span>
+              <span class="check-sub">All required sizes for both platforms</span>
+            </span>
+          </label>
+          <label class="check-item">
+            <input type="checkbox" id="chk-splash" checked>
+            <span>
+              <span class="check-label"> Splash Screens</span>
+              <span class="check-sub">Logo centred on coloured background</span>
+            </span>
+          </label>
+          <label class="check-item">
+            <input type="checkbox" id="chk-adaptive">
+            <span>
+              <span class="check-label"> Android Adaptive Icon Layers</span>
+              <span class="check-sub">Foreground + background for each density</span>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Splash background colour -->
+      <div>
+        <span class="field-label">Splash Background Colour</span>
+        <div class="color-row">
+          <input type="color" id="splash-color" value="#ffffff">
+          <span id="color-hex">#ffffff</span>
+        </div>
+      </div>
+
+      <!-- Logo size on splash -->
+      <div>
+        <span class="field-label">Logo Size on Splash — <span id="logo-pct-label">30</span>%</span>
+        <div class="range-wrap">
+          <input type="range" id="logo-size" min="10" max="70" value="30" step="5">
+          <div class="range-ends"><span>10 %</span><span>70 %</span></div>
+        </div>
+      </div>
+
+      <!-- Corner style -->
+      <div>
+        <span class="field-label">Icon Corner Style</span>
+        <div class="check-group">
+          <label class="check-item">
+            <input type="radio" name="corners" value="square" checked>
+            <span>
+              <span class="check-label"> Square</span>
+              <span class="check-sub">OS applies its own mask (recommended)</span>
+            </span>
+          </label>
+          <label class="check-item">
+            <input type="radio" name="corners" value="ios">
+            <span>
+              <span class="check-label"> iOS Rounded (~22% radius)</span>
+              <span class="check-sub">Pre-rounded PNG — useful for mockups</span>
+            </span>
+          </label>
+          <label class="check-item">
+            <input type="radio" name="corners" value="circle">
+            <span>
+              <span class="check-label"> Circle</span>
+              <span class="check-sub">Full circular mask</span>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Adaptive bg colour (conditionally shown) -->
+      <div id="adaptive-color-row" class="hidden">
+        <span class="field-label">Adaptive Icon Background Colour</span>
+        <div class="color-row">
+          <input type="color" id="adaptive-color" value="#ffffff">
+          <span id="adaptive-hex">#ffffff</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Step 3: Generate -->
+  <div class="card" id="card-generate">
+    <div class="card-title" style="justify-content:center">
+      <span class="step-num" id="sn3">3</span>
+      Generate &amp; Download
+    </div>
+
+    <div style="text-align:center">
+      <button class="btn-primary" id="btn-generate" disabled type="button">
+        ⚙️ &nbsp;Generate Assets
+      </button>
+    </div>
+
+    <div id="progress-wrap">
+      <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+      <div id="progress-label">Preparing…</div>
+    </div>
+  </div>
+
+  <!-- Step 4: Results -->
+  <div class="card" id="step-results">
+    <div class="card-title">
+      <span class="step-num done">✓</span>
+      Generated Assets
+    </div>
+
+    <div class="result-summary" id="result-summary"></div>
+
+    <div id="preview-output"></div>
+
+    <div class="result-actions">
+      <button class="btn-download" id="btn-download" type="button">⬇ Download ZIP</button>
+      <button class="btn-secondary" id="btn-reset" type="button">↩ Start Over</button>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  AppIcon Forge &nbsp;·&nbsp; All processing is done locally in your browser. No images are uploaded.
+</footer>
+
+<script>
+// ─────────────────────────────────────────────
+//  ASSET SPECIFICATIONS
+// ─────────────────────────────────────────────
+
+const IOS_ICONS = [
+  // iPhone
+  { filename: 'Icon-20@2x.png',    px: 40,   size: '20x20',      scale: '2x', idiom: 'iphone' },
+  { filename: 'Icon-20@3x.png',    px: 60,   size: '20x20',      scale: '3x', idiom: 'iphone' },
+  { filename: 'Icon-29@1x.png',    px: 29,   size: '29x29',      scale: '1x', idiom: 'iphone' },
+  { filename: 'Icon-29@2x.png',    px: 58,   size: '29x29',      scale: '2x', idiom: 'iphone' },
+  { filename: 'Icon-29@3x.png',    px: 87,   size: '29x29',      scale: '3x', idiom: 'iphone' },
+  { filename: 'Icon-40@2x.png',    px: 80,   size: '40x40',      scale: '2x', idiom: 'iphone' },
+  { filename: 'Icon-40@3x.png',    px: 120,  size: '40x40',      scale: '3x', idiom: 'iphone' },
+  { filename: 'Icon-60@2x.png',    px: 120,  size: '60x60',      scale: '2x', idiom: 'iphone' },
+  { filename: 'Icon-60@3x.png',    px: 180,  size: '60x60',      scale: '3x', idiom: 'iphone' },
+  // iPad
+  { filename: 'Icon-20@1x.png',    px: 20,   size: '20x20',      scale: '1x', idiom: 'ipad'   },
+  { filename: 'Icon-20@2x-pad.png',px: 40,   size: '20x20',      scale: '2x', idiom: 'ipad'   },
+  { filename: 'Icon-29@1x-pad.png',px: 29,   size: '29x29',      scale: '1x', idiom: 'ipad'   },
+  { filename: 'Icon-29@2x-pad.png',px: 58,   size: '29x29',      scale: '2x', idiom: 'ipad'   },
+  { filename: 'Icon-40@1x.png',    px: 40,   size: '40x40',      scale: '1x', idiom: 'ipad'   },
+  { filename: 'Icon-40@2x-pad.png',px: 80,   size: '40x40',      scale: '2x', idiom: 'ipad'   },
+  { filename: 'Icon-76@1x.png',    px: 76,   size: '76x76',      scale: '1x', idiom: 'ipad'   },
+  { filename: 'Icon-76@2x.png',    px: 152,  size: '76x76',      scale: '2x', idiom: 'ipad'   },
+  { filename: 'Icon-83.5@2x.png',  px: 167,  size: '83.5x83.5',  scale: '2x', idiom: 'ipad'   },
+  // App Store
+  { filename: 'Icon-1024@1x.png',  px: 1024, size: '1024x1024',  scale: '1x', idiom: 'ios-marketing' },
+];
+
+// Build Contents.json for Xcode appiconset
+function buildContentsJson() {
+  const images = IOS_ICONS.map(icon => ({
+    size: icon.size, idiom: icon.idiom, scale: icon.scale, filename: icon.filename,
+  }));
+  return JSON.stringify({ images, info: { version: 1, author: 'appicon-forge' } }, null, 2);
+}
+
+const ANDROID_ICONS = [
+  { density: 'mdpi',    px: 48  },
+  { density: 'hdpi',    px: 72  },
+  { density: 'xhdpi',   px: 96  },
+  { density: 'xxhdpi',  px: 144 },
+  { density: 'xxxhdpi', px: 192 },
+];
+
+// Adaptive icon full-canvas sizes (108dp at each density)
+const ANDROID_ADAPTIVE = [
+  { density: 'mdpi',    px: 108 },
+  { density: 'hdpi',    px: 162 },
+  { density: 'xhdpi',   px: 216 },
+  { density: 'xxhdpi',  px: 324 },
+  { density: 'xxxhdpi', px: 432 },
+];
+
+const IOS_SPLASH = [
+  { name: 'Splash-iPhone5-640x1136.png',         w: 640,  h: 1136, label: 'iPhone 5/SE (640×1136)' },
+  { name: 'Splash-iPhone8-750x1334.png',         w: 750,  h: 1334, label: 'iPhone 6/7/8 (750×1334)' },
+  { name: 'Splash-iPhone8Plus-1242x2208.png',    w: 1242, h: 2208, label: 'iPhone 8 Plus (1242×2208)' },
+  { name: 'Splash-iPhoneX-1125x2436.png',        w: 1125, h: 2436, label: 'iPhone X/XS/11 Pro (1125×2436)' },
+  { name: 'Splash-iPhoneXR-828x1792.png',        w: 828,  h: 1792, label: 'iPhone XR/11 (828×1792)' },
+  { name: 'Splash-iPhoneXSMax-1242x2688.png',    w: 1242, h: 2688, label: 'iPhone XS Max/11 Pro Max (1242×2688)' },
+  { name: 'Splash-iPhone12-1170x2532.png',       w: 1170, h: 2532, label: 'iPhone 12/13 Pro (1170×2532)' },
+  { name: 'Splash-iPhone12ProMax-1284x2778.png', w: 1284, h: 2778, label: 'iPhone 12/13 Pro Max (1284×2778)' },
+  { name: 'Splash-iPhone14Pro-1179x2556.png',    w: 1179, h: 2556, label: 'iPhone 14 Pro (1179×2556)' },
+  { name: 'Splash-iPhone14ProMax-1290x2796.png', w: 1290, h: 2796, label: 'iPhone 14 Pro Max (1290×2796)' },
+  { name: 'Splash-iPad-1536x2048.png',           w: 1536, h: 2048, label: 'iPad Retina (1536×2048)' },
+  { name: 'Splash-iPadPro11-1668x2388.png',      w: 1668, h: 2388, label: 'iPad Pro 11" (1668×2388)' },
+  { name: 'Splash-iPadPro12-2048x2732.png',      w: 2048, h: 2732, label: 'iPad Pro 12.9" (2048×2732)' },
+];
+
+const ANDROID_SPLASH = [
+  { density: 'mdpi',    w: 320,  h: 480  },
+  { density: 'hdpi',    w: 480,  h: 800  },
+  { density: 'xhdpi',   w: 720,  h: 1280 },
+  { density: 'xxhdpi',  w: 960,  h: 1600 },
+  { density: 'xxxhdpi', w: 1280, h: 1920 },
+];
+
+// ─────────────────────────────────────────────
+//  CANVAS UTILITIES
+// ─────────────────────────────────────────────
+
+function clipCorners(ctx, w, h, radius) {
+  ctx.beginPath();
+  ctx.moveTo(radius, 0);
+  ctx.arcTo(w, 0,   w, h,   radius);
+  ctx.arcTo(w, h,   0, h,   radius);
+  ctx.arcTo(0, h,   0, 0,   radius);
+  ctx.arcTo(0, 0,   w, 0,   radius);
+  ctx.closePath();
+  ctx.clip();
+}
+
+function makeIconCanvas(img, px, cornerMode) {
+  const c = document.createElement('canvas');
+  c.width = px; c.height = px;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  if (cornerMode === 'ios') {
+    clipCorners(ctx, px, px, px * 0.2237);
+  } else if (cornerMode === 'circle') {
+    ctx.beginPath();
+    ctx.arc(px / 2, px / 2, px / 2, 0, Math.PI * 2);
+    ctx.clip();
+  }
+
+  ctx.drawImage(img, 0, 0, px, px);
+  return c;
+}
+
+function makeSplashCanvas(img, w, h, bgColor, logoPct) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0, 0, w, h);
+
+  const logoSize = Math.min(w, h) * (logoPct / 100);
+  const x = (w - logoSize) / 2;
+  const y = (h - logoSize) / 2;
+  ctx.drawImage(img, x, y, logoSize, logoSize);
+  return c;
+}
+
+function makeAdaptiveFgCanvas(img, px) {
+  const c = document.createElement('canvas');
+  c.width = px; c.height = px;
+  const ctx = c.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  // safe zone = 72/108 of canvas
+  const safe = px * (72 / 108);
+  const off  = (px - safe) / 2;
+  ctx.drawImage(img, off, off, safe, safe);
+  return c;
+}
+
+function makeAdaptiveBgCanvas(px, color) {
+  const c = document.createElement('canvas');
+  c.width = px; c.height = px;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, px, px);
+  return c;
+}
+
+function canvasToBlob(canvas) {
+  return new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+}
+
+// ─────────────────────────────────────────────
+//  THUMBNAIL HELPERS (for preview)
+// ─────────────────────────────────────────────
+
+const MAX_THUMB = 64;  // px display size for icon thumbs
+const MAX_SPLASH_W = 48;
+
+function makeThumb(canvas, maxW, maxH) {
+  const ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+  const dw = Math.round(canvas.width  * ratio);
+  const dh = Math.round(canvas.height * ratio);
+  const t = document.createElement('canvas');
+  t.width = dw; t.height = dh;
+  const ctx = t.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(canvas, 0, 0, dw, dh);
+  return t;
+}
+
+// ─────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────
+
+let sourceImage = null;   // HTMLImageElement
+let generatedZip = null;  // JSZip instance
+
+// ─────────────────────────────────────────────
+//  UI ELEMENTS
+// ─────────────────────────────────────────────
+
+const dropZone     = document.getElementById('drop-zone');
+const fileInput    = document.getElementById('file-input');
+const browseBtn    = document.getElementById('browse-btn');
+const imgPreview   = document.getElementById('img-preview-wrap');
+const previewThumb = document.getElementById('preview-thumb');
+const previewFname = document.getElementById('preview-fname');
+const previewFdims = document.getElementById('preview-fdims');
+const previewWarn  = document.getElementById('preview-warn');
+const btnRemove    = document.getElementById('btn-remove');
+
+const chkIos       = document.getElementById('chk-ios');
+const chkAndroid   = document.getElementById('chk-android');
+const chkIcons     = document.getElementById('chk-icons');
+const chkSplash    = document.getElementById('chk-splash');
+const chkAdaptive  = document.getElementById('chk-adaptive');
+const splashColor  = document.getElementById('splash-color');
+const colorHex     = document.getElementById('color-hex');
+const adaptiveColor= document.getElementById('adaptive-color');
+const adaptiveHex  = document.getElementById('adaptive-hex');
+const adaptColorRow= document.getElementById('adaptive-color-row');
+const logoSize     = document.getElementById('logo-size');
+const logoPctLabel = document.getElementById('logo-pct-label');
+
+const btnGenerate  = document.getElementById('btn-generate');
+const progressWrap = document.getElementById('progress-wrap');
+const progressFill = document.getElementById('progress-fill');
+const progressLabel= document.getElementById('progress-label');
+
+const stepResults  = document.getElementById('step-results');
+const resultSummary= document.getElementById('result-summary');
+const previewOutput= document.getElementById('preview-output');
+const btnDownload  = document.getElementById('btn-download');
+const btnReset     = document.getElementById('btn-reset');
+
+// ─────────────────────────────────────────────
+//  UPLOAD HANDLING
+// ─────────────────────────────────────────────
+
+browseBtn.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('click', (e) => { if (e.target !== browseBtn) fileInput.click(); });
+dropZone.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') fileInput.click(); });
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+dropZone.addEventListener('dragleave', ()  => dropZone.classList.remove('over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (file) loadFile(file);
+});
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files[0]) loadFile(fileInput.files[0]);
+});
+
+btnRemove.addEventListener('click', resetUpload);
+
+function loadFile(file) {
+  if (!file.type.startsWith('image/')) { alert('Please upload an image file.'); return; }
+
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    sourceImage = img;
+    previewThumb.src = url;
+    previewFname.textContent = file.name;
+    previewFdims.textContent = `${img.naturalWidth} × ${img.naturalHeight} px  ·  ${(file.size / 1024).toFixed(0)} KB`;
+    previewWarn.style.display = (img.naturalWidth < 1024 || img.naturalHeight < 1024) ? 'block' : 'none';
+    dropZone.style.display = 'none';
+    imgPreview.style.display = 'flex';
+    btnGenerate.disabled = false;
+    stepResults.style.display = 'none';
+  };
+  img.onerror = () => alert('Could not load image. Please try another file.');
+  img.src = url;
+}
+
+function resetUpload() {
+  sourceImage = null;
+  generatedZip = null;
+  fileInput.value = '';
+  previewThumb.src = '';
+  dropZone.style.display = '';
+  imgPreview.style.display = 'none';
+  btnGenerate.disabled = true;
+  progressWrap.style.display = 'none';
+  progressFill.style.width = '0%';
+  stepResults.style.display = 'none';
+}
+
+// ─────────────────────────────────────────────
+//  CONFIG CONTROLS
+// ─────────────────────────────────────────────
+
+splashColor.addEventListener('input', () => { colorHex.textContent = splashColor.value; });
+adaptiveColor.addEventListener('input', () => { adaptiveHex.textContent = adaptiveColor.value; });
+logoSize.addEventListener('input', () => { logoPctLabel.textContent = logoSize.value; });
+chkAdaptive.addEventListener('change', () => {
+  adaptColorRow.classList.toggle('hidden', !chkAdaptive.checked);
+});
+
+// ─────────────────────────────────────────────
+//  GENERATION
+// ─────────────────────────────────────────────
+
+btnGenerate.addEventListener('click', runGeneration);
+
+async function runGeneration() {
+  if (!sourceImage) return;
+
+  const cfg = {
+    ios:      chkIos.checked,
+    android:  chkAndroid.checked,
+    icons:    chkIcons.checked,
+    splash:   chkSplash.checked,
+    adaptive: chkAdaptive.checked && chkAndroid.checked,
+    bgColor:  splashColor.value,
+    adaptBg:  adaptiveColor.value,
+    logoPct:  parseInt(logoSize.value, 10),
+    corners:  document.querySelector('input[name="corners"]:checked').value,
+  };
+
+  if (!cfg.ios && !cfg.android) { alert('Select at least one platform.'); return; }
+  if (!cfg.icons && !cfg.splash && !cfg.adaptive) { alert('Select at least one asset type.'); return; }
+
+  btnGenerate.disabled = true;
+  progressWrap.style.display = 'block';
+  stepResults.style.display = 'none';
+
+  // Count total steps
+  let total = 0;
+  if (cfg.ios    && cfg.icons)   total += IOS_ICONS.length;
+  if (cfg.android && cfg.icons)  total += ANDROID_ICONS.length + 1; // +1 for Play Store
+  if (cfg.ios    && cfg.splash)  total += IOS_SPLASH.length;
+  if (cfg.android && cfg.splash) total += ANDROID_SPLASH.length;
+  if (cfg.adaptive)              total += ANDROID_ADAPTIVE.length * 2;
+
+  let done = 0;
+  const tick = (label) => {
+    done++;
+    progressFill.style.width = `${(done / total) * 100}%`;
+    progressLabel.textContent = label;
+  };
+
+  const zip = new JSZip();
+  const previewData = { iosIcons: [], androidIcons: [], iosSplash: [], androidSplash: [], adaptive: [] };
+
+  // ── iOS Icons ──
+  if (cfg.ios && cfg.icons) {
+    const folder = zip.folder('iOS/AppIcon.appiconset');
+    folder.file('Contents.json', buildContentsJson());
+    for (const icon of IOS_ICONS) {
+      await yieldFrame();
+      const canvas = makeIconCanvas(sourceImage, icon.px, cfg.corners);
+      const blob   = await canvasToBlob(canvas);
+      folder.file(icon.filename, blob);
+      previewData.iosIcons.push({ thumb: makeThumb(canvas, MAX_THUMB, MAX_THUMB), label: `${icon.px}px`, sub: icon.filename });
+      tick(`iOS icon ${icon.filename}`);
+    }
+  }
+
+  // ── Android Icons ──
+  if (cfg.android && cfg.icons) {
+    for (const icon of ANDROID_ICONS) {
+      await yieldFrame();
+      const canvas = makeIconCanvas(sourceImage, icon.px, cfg.corners);
+      const blob   = await canvasToBlob(canvas);
+      zip.file(`Android/mipmap-${icon.density}/ic_launcher.png`, blob);
+      previewData.androidIcons.push({ thumb: makeThumb(canvas, MAX_THUMB, MAX_THUMB), label: `${icon.px}px`, sub: icon.density });
+      tick(`Android icon ${icon.density}`);
+    }
+    // Play Store icon
+    await yieldFrame();
+    const psCanvas = makeIconCanvas(sourceImage, 512, cfg.corners);
+    const psBlob   = await canvasToBlob(psCanvas);
+    zip.file('Android/playstore-icon.png', psBlob);
+    previewData.androidIcons.push({ thumb: makeThumb(psCanvas, MAX_THUMB, MAX_THUMB), label: '512px', sub: 'Play Store' });
+    tick('Android Play Store icon');
+  }
+
+  // ── iOS Splash Screens ──
+  if (cfg.ios && cfg.splash) {
+    const folder = zip.folder('iOS/SplashScreens');
+    for (const sp of IOS_SPLASH) {
+      await yieldFrame();
+      const canvas = makeSplashCanvas(sourceImage, sp.w, sp.h, cfg.bgColor, cfg.logoPct);
+      const blob   = await canvasToBlob(canvas);
+      folder.file(sp.name, blob);
+      const aspectH = Math.round(MAX_SPLASH_W * (sp.h / sp.w));
+      previewData.iosSplash.push({ thumb: makeThumb(canvas, MAX_SPLASH_W, 96), label: `${sp.w}×${sp.h}`, sub: sp.label });
+      tick(`iOS splash ${sp.name}`);
+    }
+  }
+
+  // ── Android Splash Screens ──
+  if (cfg.android && cfg.splash) {
+    for (const sp of ANDROID_SPLASH) {
+      await yieldFrame();
+      const canvas = makeSplashCanvas(sourceImage, sp.w, sp.h, cfg.bgColor, cfg.logoPct);
+      const blob   = await canvasToBlob(canvas);
+      zip.file(`Android/drawable-${sp.density}/splash.png`, blob);
+      previewData.androidSplash.push({ thumb: makeThumb(canvas, MAX_SPLASH_W, 96), label: `${sp.w}×${sp.h}`, sub: sp.density });
+      tick(`Android splash ${sp.density}`);
+    }
+  }
+
+  // ── Adaptive Icons ──
+  if (cfg.adaptive) {
+    for (const a of ANDROID_ADAPTIVE) {
+      await yieldFrame();
+      const fgCanvas = makeAdaptiveFgCanvas(sourceImage, a.px);
+      const fgBlob   = await canvasToBlob(fgCanvas);
+      zip.file(`Android/mipmap-${a.density}/ic_launcher_foreground.png`, fgBlob);
+      tick(`Adaptive foreground ${a.density}`);
+
+      await yieldFrame();
+      const bgCanvas = makeAdaptiveBgCanvas(a.px, cfg.adaptBg);
+      const bgBlob   = await canvasToBlob(bgCanvas);
+      zip.file(`Android/mipmap-${a.density}/ic_launcher_background.png`, bgBlob);
+      previewData.adaptive.push({ thumb: makeThumb(fgCanvas, MAX_THUMB, MAX_THUMB), label: `${a.px}px`, sub: a.density });
+      tick(`Adaptive background ${a.density}`);
+    }
+  }
+
+  // ── README ──
+  zip.file('README.txt', buildReadme(cfg));
+
+  generatedZip = zip;
+  progressFill.style.width = '100%';
+  progressLabel.textContent = 'Done!';
+
+  await yieldFrame();
+  renderPreview(previewData, cfg, total);
+  btnGenerate.disabled = false;
+}
+
+function yieldFrame() {
+  return new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+}
+
+// ─────────────────────────────────────────────
+//  PREVIEW RENDERING
+// ─────────────────────────────────────────────
+
+function renderPreview(data, cfg, totalAssets) {
+  previewOutput.innerHTML = '';
+  resultSummary.innerHTML = '';
+
+  // Summary pills
+  const stats = [
+    totalAssets + ' files generated',
+    cfg.ios     ? 'iOS ready' : null,
+    cfg.android ? 'Android ready' : null,
+    cfg.adaptive ? 'Adaptive icons' : null,
+  ].filter(Boolean);
+
+  stats.forEach(s => {
+    const el = document.createElement('div');
+    el.className = 'stat-pill';
+    el.innerHTML = '✓ ' + s;
+    resultSummary.appendChild(el);
+  });
+
+  if (cfg.ios && cfg.icons && data.iosIcons.length) {
+    previewOutput.appendChild(renderIconBlock('iOS App Icons', data.iosIcons));
+  }
+  if (cfg.android && cfg.icons && data.androidIcons.length) {
+    previewOutput.appendChild(renderIconBlock('Android Launcher Icons', data.androidIcons));
+  }
+  if (cfg.adaptive && data.adaptive.length) {
+    previewOutput.appendChild(renderIconBlock('Android Adaptive Icon Foregrounds', data.adaptive));
+  }
+  if (cfg.ios && cfg.splash && data.iosSplash.length) {
+    previewOutput.appendChild(renderSplashBlock('iOS Splash Screens', data.iosSplash));
+  }
+  if (cfg.android && cfg.splash && data.androidSplash.length) {
+    previewOutput.appendChild(renderSplashBlock('Android Splash Screens', data.androidSplash));
+  }
+
+  stepResults.style.display = 'block';
+  stepResults.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderIconBlock(title, items) {
+  const block = document.createElement('div');
+  block.className = 'platform-block';
+  block.innerHTML = `<div class="platform-heading">${title}</div>`;
+  const row = document.createElement('div');
+  row.className = 'icon-row';
+  items.forEach(item => {
+    const chip = document.createElement('div');
+    chip.className = 'icon-chip';
+    chip.appendChild(item.thumb);
+    chip.innerHTML += `<div class="chip-label">${item.label}<br>${item.sub}</div>`;
+    row.appendChild(chip);
+  });
+  block.appendChild(row);
+  return block;
+}
+
+function renderSplashBlock(title, items) {
+  const block = document.createElement('div');
+  block.className = 'platform-block';
+  block.innerHTML = `<div class="platform-heading">${title}</div>`;
+  const row = document.createElement('div');
+  row.className = 'splash-row';
+  items.forEach(item => {
+    const chip = document.createElement('div');
+    chip.className = 'splash-chip';
+    chip.appendChild(item.thumb);
+    chip.innerHTML += `<div class="chip-label">${item.label}<br>${item.sub}</div>`;
+    row.appendChild(chip);
+  });
+  block.appendChild(row);
+  return block;
+}
+
+// ─────────────────────────────────────────────
+//  DOWNLOAD
+// ─────────────────────────────────────────────
+
+btnDownload.addEventListener('click', async () => {
+  if (!generatedZip) return;
+  btnDownload.textContent = '⏳ Preparing ZIP…';
+  btnDownload.disabled = true;
+  try {
+    const blob = await generatedZip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = 'AppIconForge-Export.zip';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (e) {
+    alert('ZIP generation failed: ' + e.message);
+  } finally {
+    btnDownload.textContent = '⬇ Download ZIP';
+    btnDownload.disabled = false;
+  }
+});
+
+btnReset.addEventListener('click', () => {
+  resetUpload();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
+// ─────────────────────────────────────────────
+//  README CONTENT
+// ─────────────────────────────────────────────
+
+function buildReadme(cfg) {
+  return `AppIcon Forge — Export Package
+Generated: ${new Date().toISOString()}
+https://github.com/app-rollout-processor/icon-maker
+
+FOLDER STRUCTURE
+================
+${cfg.ios ? `
+iOS/
+  AppIcon.appiconset/
+    Contents.json          ← Drag this entire folder into your Xcode Assets.xcassets
+    Icon-*.png             ← All required sizes (20px – 1024px)
+${cfg.splash ? '  SplashScreens/\n    *.png                  ← Add to LaunchImage in Assets.xcassets or use as storyboard backgrounds\n' : ''}` : ''}
+${cfg.android ? `
+Android/
+  mipmap-*/
+    ic_launcher.png        ← Copy each mipmap-* folder into your app/src/main/res/
+${cfg.adaptive ? '    ic_launcher_foreground.png\n    ic_launcher_background.png\n' : ''}  playstore-icon.png       ← Upload to Google Play Console (512×512)
+${cfg.splash ? '  drawable-*/\n    splash.png             ← Use as launch screen background drawable\n' : ''}` : ''}
+
+USAGE NOTES
+===========
+iOS:
+  • Drag iOS/AppIcon.appiconset into your Xcode project's Assets.xcassets
+  • Xcode automatically applies the iOS icon mask (rounded corners)
+  • For launch screens, prefer LaunchScreen.storyboard over static images
+
+Android:
+  • Copy the mipmap-* folders to app/src/main/res/
+  • For Android 8.0+ adaptive icons, use ic_launcher.xml in mipmap-anydpi-v26/
+  • Google Play automatically applies rounded corners to the 512×512 icon
+
+Generated by AppIcon Forge — all processing done locally in your browser.
+`;
+}
+</script>
+</body>
+</html>
