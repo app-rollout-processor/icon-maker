@@ -810,9 +810,10 @@ async function runGeneration() {
     for (const icon of IOS_ICONS) {
       await yieldFrame();
       const canvas = makeIconCanvas(sourceImage, icon.px, cfg.corners);
+      const t      = makeThumb(canvas, MAX_THUMB, MAX_THUMB);
       const blob   = await canvasToBlob(canvas);
       folder.file(icon.filename, blob);
-      previewData.iosIcons.push({ thumb: makeThumb(canvas, MAX_THUMB, MAX_THUMB), label: `${icon.px}px`, sub: icon.filename });
+      previewData.iosIcons.push({ thumb: t, label: `${icon.px}px`, sub: icon.filename });
       tick(`iOS icon ${icon.filename}`);
     }
   }
@@ -822,17 +823,19 @@ async function runGeneration() {
     for (const icon of ANDROID_ICONS) {
       await yieldFrame();
       const canvas = makeIconCanvas(sourceImage, icon.px, cfg.corners);
+      const t      = makeThumb(canvas, MAX_THUMB, MAX_THUMB);
       const blob   = await canvasToBlob(canvas);
       zip.file(`Android/mipmap-${icon.density}/ic_launcher.png`, blob);
-      previewData.androidIcons.push({ thumb: makeThumb(canvas, MAX_THUMB, MAX_THUMB), label: `${icon.px}px`, sub: icon.density });
+      previewData.androidIcons.push({ thumb: t, label: `${icon.px}px`, sub: icon.density });
       tick(`Android icon ${icon.density}`);
     }
     // Play Store icon
     await yieldFrame();
     const psCanvas = makeIconCanvas(sourceImage, 512, cfg.corners);
+    const psThumb  = makeThumb(psCanvas, MAX_THUMB, MAX_THUMB);
     const psBlob   = await canvasToBlob(psCanvas);
     zip.file('Android/playstore-icon.png', psBlob);
-    previewData.androidIcons.push({ thumb: makeThumb(psCanvas, MAX_THUMB, MAX_THUMB), label: '512px', sub: 'Play Store' });
+    previewData.androidIcons.push({ thumb: psThumb, label: '512px', sub: 'Play Store' });
     tick('Android Play Store icon');
   }
 
@@ -842,10 +845,10 @@ async function runGeneration() {
     for (const sp of IOS_SPLASH) {
       await yieldFrame();
       const canvas = makeSplashCanvas(sourceImage, sp.w, sp.h, cfg.bgColor, cfg.logoPct);
+      const t      = makeThumb(canvas, MAX_SPLASH_W, 96);
       const blob   = await canvasToBlob(canvas);
       folder.file(sp.name, blob);
-      const aspectH = Math.round(MAX_SPLASH_W * (sp.h / sp.w));
-      previewData.iosSplash.push({ thumb: makeThumb(canvas, MAX_SPLASH_W, 96), label: `${sp.w}×${sp.h}`, sub: sp.label });
+      previewData.iosSplash.push({ thumb: t, label: `${sp.w}×${sp.h}`, sub: sp.label });
       tick(`iOS splash ${sp.name}`);
     }
   }
@@ -855,9 +858,10 @@ async function runGeneration() {
     for (const sp of ANDROID_SPLASH) {
       await yieldFrame();
       const canvas = makeSplashCanvas(sourceImage, sp.w, sp.h, cfg.bgColor, cfg.logoPct);
+      const t      = makeThumb(canvas, MAX_SPLASH_W, 96);
       const blob   = await canvasToBlob(canvas);
       zip.file(`Android/drawable-${sp.density}/splash.png`, blob);
-      previewData.androidSplash.push({ thumb: makeThumb(canvas, MAX_SPLASH_W, 96), label: `${sp.w}×${sp.h}`, sub: sp.density });
+      previewData.androidSplash.push({ thumb: t, label: `${sp.w}×${sp.h}`, sub: sp.density });
       tick(`Android splash ${sp.density}`);
     }
   }
@@ -867,6 +871,7 @@ async function runGeneration() {
     for (const a of ANDROID_ADAPTIVE) {
       await yieldFrame();
       const fgCanvas = makeAdaptiveFgCanvas(sourceImage, a.px);
+      const fgThumb  = makeThumb(fgCanvas, MAX_THUMB, MAX_THUMB);
       const fgBlob   = await canvasToBlob(fgCanvas);
       zip.file(`Android/mipmap-${a.density}/ic_launcher_foreground.png`, fgBlob);
       tick(`Adaptive foreground ${a.density}`);
@@ -875,7 +880,7 @@ async function runGeneration() {
       const bgCanvas = makeAdaptiveBgCanvas(a.px, cfg.adaptBg);
       const bgBlob   = await canvasToBlob(bgCanvas);
       zip.file(`Android/mipmap-${a.density}/ic_launcher_background.png`, bgBlob);
-      previewData.adaptive.push({ thumb: makeThumb(fgCanvas, MAX_THUMB, MAX_THUMB), label: `${a.px}px`, sub: a.density });
+      previewData.adaptive.push({ thumb: fgThumb, label: `${a.px}px`, sub: a.density });
       tick(`Adaptive background ${a.density}`);
     }
   }
