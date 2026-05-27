@@ -614,6 +614,15 @@
           </label>
         </div>
       </div>
+      <div class="field-row">
+        <span class="field-label">Pattern</span>
+        <select id="bg-pattern">
+          <option value="none">None</option>
+          <option value="grid">Grid</option>
+          <option value="dots">Dots</option>
+          <option value="diagonal">Diagonal</option>
+        </select>
+      </div>
     </div>
 
     <!-- Text -->
@@ -624,12 +633,24 @@
         <input type="text" id="txt-headline" placeholder="Your App, Your Way" maxlength="80">
       </div>
       <div class="field-row">
+        <span class="field-label">Accent line</span>
+        <input type="text" id="txt-accent" placeholder="(colored 2nd line, optional)" maxlength="40">
+      </div>
+      <div class="field-row">
         <span class="field-label">Caption</span>
         <input type="text" id="txt-caption" placeholder="Discover a better experience" maxlength="120">
       </div>
       <div class="field-row">
+        <span class="field-label">Tags</span>
+        <input type="text" id="txt-tags" placeholder="Read, Learn, Audio (comma sep)" maxlength="60">
+      </div>
+      <div class="field-row">
         <span class="field-label">Text Color</span>
         <input type="color" id="txt-color" value="#ffffff">
+      </div>
+      <div class="field-row">
+        <span class="field-label">Accent Color</span>
+        <input type="color" id="txt-accent-color" value="#fde047">
       </div>
       <div class="field-row">
         <span class="field-label">Position</span>
@@ -765,12 +786,16 @@ function defaultSlot() {
     bgColor: '#667eea',
     bgColor2: '#764ba2',
     headline: 'Your App, Your Way',
+    headlineAccent: '',
+    accentColor: '#fde047',
     headlineColor: '#ffffff',
     caption: 'Discover a better experience',
+    tags: '',
     textPosition: 'bottom',
     frameStyle: 'device',
     screenshotFit: 'cover',
     design: 'classic',
+    bgPattern: 'none',
   };
 }
 
@@ -808,6 +833,42 @@ function drawBackground(ctx, w, h, slot) {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, w, h);
   }
+  drawPattern(ctx, w, h, slot);
+}
+
+function drawPattern(ctx, w, h, slot) {
+  const p = slot.bgPattern;
+  if (!p || p === 'none') return;
+  ctx.save();
+  const lineColor = 'rgba(255,255,255,0.08)';
+  if (p === 'grid') {
+    const step = w * 0.07;
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = Math.max(1, w * 0.0015);
+    ctx.beginPath();
+    for (let x = step; x < w; x += step) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+    for (let y = step; y < h; y += step) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+    ctx.stroke();
+  } else if (p === 'dots') {
+    const step = w * 0.06;
+    const r = w * 0.006;
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    for (let x = step; x < w; x += step) {
+      for (let y = step; y < h; y += step) {
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  } else if (p === 'diagonal') {
+    const step = w * 0.08;
+    ctx.strokeStyle = lineColor;
+    ctx.lineWidth = Math.max(1, w * 0.0015);
+    ctx.beginPath();
+    for (let i = -h; i < w; i += step) { ctx.moveTo(i, 0); ctx.lineTo(i + h, h); }
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function roundRectPath(ctx, x, y, w, h, r) {
@@ -981,22 +1042,43 @@ function drawFittedImage(ctx, img, rx, ry, rw, rh, fit) {
   ctx.drawImage(img, dx, dy, dw, dh);
 }
 
+function parseTags(str) {
+  return (str || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 5);
+}
+
 function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH, design) {
-  const headlineSize = canvasH * 0.048 * design.headlineScale;
+  const headlineSize = canvasH * 0.046 * design.headlineScale;
+  const accentSize   = canvasH * 0.050 * design.headlineScale;
   const captionSize  = canvasH * 0.026 * design.captionScale;
+  const pillFont     = canvasH * 0.020;
   const maxW = canvasW * 0.88;
   const cx = tbX + tbW / 2;
+  const fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
   let headline = slot.headline || '';
-  if (design.uppercase) headline = headline.toUpperCase();
+  let accent   = slot.headlineAccent || '';
+  if (design.uppercase) { headline = headline.toUpperCase(); accent = accent.toUpperCase(); }
+  const caption = slot.caption || '';
+  const tags = parseTags(slot.tags);
+
+  // Build a vertical stack of elements with measured heights
+  const gap = canvasH * 0.011;
+  const els = [];
+  if (headline) els.push({ type:'headline', h: headlineSize });
+  if (accent)   els.push({ type:'accent',   h: accentSize });
+  if (caption)  els.push({ type:'caption',  h: captionSize });
+  if (tags.length) els.push({ type:'tags',  h: pillFont * 2.0 });
+
+  const totalH = els.reduce((s, e) => s + e.h, 0) + gap * Math.max(0, els.length - 1);
 
   // Glass card behind text
-  if (design.textCard && (headline || slot.caption)) {
+  if (design.textCard && els.length) {
     ctx.save();
     const cardW = canvasW * 0.86;
-    const cardH = tbH * 0.74;
+    const cardH = Math.min(tbH * 0.9, totalH + canvasH * 0.04);
     const cardX = (canvasW - cardW) / 2;
     const cardY = tbY + (tbH - cardH) / 2;
-    roundRectPath(ctx, cardX, cardY, cardW, cardH, cardH * 0.18);
+    roundRectPath(ctx, cardX, cardY, cardW, cardH, cardH * 0.16);
     ctx.fillStyle = 'rgba(255,255,255,0.14)';
     ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.22)';
@@ -1008,29 +1090,77 @@ function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH, design
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // Headline
-  ctx.save();
-  ctx.font = `700 ${headlineSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
-  ctx.fillStyle = slot.headlineColor;
-  ctx.shadowColor = 'rgba(0,0,0,0.3)';
-  ctx.shadowBlur = headlineSize * 0.3;
-  ctx.shadowOffsetY = headlineSize * 0.05;
-  const hlY = tbY + tbH * 0.38;
-  ctx.fillText(headline, cx, hlY, maxW);
-  ctx.restore();
-
-  // Caption
-  if (slot.caption) {
-    ctx.save();
-    ctx.font = `400 ${captionSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
-    ctx.fillStyle = slot.headlineColor;
-    ctx.globalAlpha = 0.82;
-    ctx.shadowColor = 'rgba(0,0,0,0.2)';
-    ctx.shadowBlur = captionSize * 0.3;
-    const capY = tbY + tbH * 0.65;
-    ctx.fillText(slot.caption, cx, capY, maxW);
-    ctx.restore();
+  let y = tbY + (tbH - totalH) / 2;
+  for (const el of els) {
+    const midY = y + el.h / 2;
+    if (el.type === 'headline') {
+      ctx.save();
+      ctx.font = `700 ${headlineSize}px ${fontFamily}`;
+      ctx.fillStyle = slot.headlineColor;
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = headlineSize * 0.3;
+      ctx.shadowOffsetY = headlineSize * 0.05;
+      ctx.fillText(headline, cx, midY, maxW);
+      ctx.restore();
+    } else if (el.type === 'accent') {
+      ctx.save();
+      ctx.font = `800 ${accentSize}px ${fontFamily}`;
+      ctx.fillStyle = slot.accentColor || '#fde047';
+      ctx.shadowColor = 'rgba(0,0,0,0.3)';
+      ctx.shadowBlur = accentSize * 0.3;
+      ctx.shadowOffsetY = accentSize * 0.05;
+      ctx.fillText(accent, cx, midY, maxW);
+      ctx.restore();
+    } else if (el.type === 'caption') {
+      ctx.save();
+      ctx.font = `400 ${captionSize}px ${fontFamily}`;
+      ctx.fillStyle = slot.headlineColor;
+      ctx.globalAlpha = 0.82;
+      ctx.shadowColor = 'rgba(0,0,0,0.2)';
+      ctx.shadowBlur = captionSize * 0.3;
+      ctx.fillText(caption, cx, midY, maxW);
+      ctx.restore();
+    } else if (el.type === 'tags') {
+      drawTagPills(ctx, tags, cx, midY, pillFont, slot, maxW, fontFamily);
+    }
+    y += el.h + gap;
   }
+}
+
+function drawTagPills(ctx, tags, cx, midY, pillFont, slot, maxW, fontFamily) {
+  ctx.save();
+  ctx.font = `700 ${pillFont}px ${fontFamily}`;
+  const padX = pillFont * 0.85;
+  const padY = pillFont * 0.55;
+  const gap  = pillFont * 0.55;
+  const pillH = pillFont + padY * 2;
+
+  // Measure
+  const widths = tags.map(t => ctx.measureText(t).width + padX * 2);
+  let totalW = widths.reduce((s, w) => s + w, 0) + gap * (tags.length - 1);
+
+  // Shrink to fit maxW
+  let scale = 1;
+  if (totalW > maxW) scale = maxW / totalW;
+
+  ctx.save();
+  ctx.translate(cx, midY);
+  ctx.scale(scale, scale);
+  let x = -totalW / 2;
+  for (let i = 0; i < tags.length; i++) {
+    const w = widths[i];
+    roundRectPath(ctx, x, -pillH / 2, w, pillH, pillH / 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.fill();
+    ctx.fillStyle = '#1e293b';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = `700 ${pillFont}px ${fontFamily}`;
+    ctx.fillText(tags[i], x + w / 2, 0);
+    x += w + gap;
+  }
+  ctx.restore();
+  ctx.restore();
 }
 
 function renderSlot(slot, storeKey, targetW, targetH) {
@@ -1047,7 +1177,11 @@ function renderSlot(slot, storeKey, targetW, targetH) {
   drawBackground(ctx, targetW, targetH, slot);
 
   // 2. Layout
-  const textBandH = targetH * design.textBand;
+  let textBandFrac = design.textBand;
+  if (slot.headlineAccent) textBandFrac += 0.05;
+  if (parseTags(slot.tags).length) textBandFrac += 0.05;
+  textBandFrac = Math.min(textBandFrac, 0.42);
+  const textBandH = targetH * textBandFrac;
   const deviceAreaH = targetH - textBandH;
 
   let textBandY, deviceAreaY;
@@ -1167,9 +1301,13 @@ function syncSidebarFromSlot() {
   document.getElementById('bg-color1').value   = slot.bgColor;
   document.getElementById('bg-color2').value   = slot.bgColor2;
   document.querySelectorAll('input[name="bg-type"]').forEach(r => { r.checked = r.value === slot.bgType; });
+  document.getElementById('bg-pattern').value   = slot.bgPattern || 'none';
   document.getElementById('txt-headline').value = slot.headline;
+  document.getElementById('txt-accent').value   = slot.headlineAccent || '';
   document.getElementById('txt-caption').value  = slot.caption;
+  document.getElementById('txt-tags').value     = slot.tags || '';
   document.getElementById('txt-color').value    = slot.headlineColor;
+  document.getElementById('txt-accent-color').value = slot.accentColor || '#fde047';
   document.querySelectorAll('input[name="txt-pos"]').forEach(r => { r.checked = r.value === slot.textPosition; });
   document.getElementById('frame-style').value  = slot.frameStyle;
   document.getElementById('screenshot-fit').value = slot.screenshotFit;
@@ -1457,9 +1595,13 @@ function onSlotChange() {
   slot.bgColor   = document.getElementById('bg-color1').value;
   slot.bgColor2  = document.getElementById('bg-color2').value;
   slot.bgType    = document.querySelector('input[name="bg-type"]:checked').value;
+  slot.bgPattern = document.getElementById('bg-pattern').value;
   slot.headline  = document.getElementById('txt-headline').value;
+  slot.headlineAccent = document.getElementById('txt-accent').value;
   slot.caption   = document.getElementById('txt-caption').value;
+  slot.tags      = document.getElementById('txt-tags').value;
   slot.headlineColor = document.getElementById('txt-color').value;
+  slot.accentColor   = document.getElementById('txt-accent-color').value;
   slot.textPosition  = document.querySelector('input[name="txt-pos"]:checked').value;
   slot.frameStyle    = document.getElementById('frame-style').value;
   slot.screenshotFit = document.getElementById('screenshot-fit').value;
@@ -1469,16 +1611,16 @@ function onSlotChange() {
   refreshActiveSlot();
 }
 
-['bg-color1','bg-color2','txt-color'].forEach(id => {
+['bg-color1','bg-color2','txt-color','txt-accent-color'].forEach(id => {
   document.getElementById(id).addEventListener('input', onSlotChange);
 });
 document.querySelectorAll('input[name="bg-type"], input[name="txt-pos"]').forEach(r => {
   r.addEventListener('change', onSlotChange);
 });
-['txt-headline','txt-caption'].forEach(id => {
+['txt-headline','txt-accent','txt-caption','txt-tags'].forEach(id => {
   document.getElementById(id).addEventListener('input', onSlotChange);
 });
-['frame-style','screenshot-fit'].forEach(id => {
+['frame-style','screenshot-fit','bg-pattern'].forEach(id => {
   document.getElementById(id).addEventListener('change', onSlotChange);
 });
 
