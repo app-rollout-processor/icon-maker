@@ -523,6 +523,16 @@
       color: var(--muted);
     }
 
+    /* Save badge */
+    .save-badge {
+      font-size: .72rem; font-weight: 600; padding: 3px 10px;
+      border-radius: 100px; opacity: 0; transition: opacity .3s;
+      white-space: nowrap;
+    }
+    .save-badge.saving { background: #fef9c3; color: #854d0e; opacity: 1; }
+    .save-badge.saved  { background: #dcfce7; color: #166534; opacity: 1; }
+    .save-badge.fade   { opacity: 0; }
+
     /* ── Hidden file input ── */
     .hidden-file { display: none; }
 
@@ -675,6 +685,7 @@
       </div>
       <span class="dim-badge" id="dim-badge">1290 × 2796</span>
       <div class="toolbar-spacer"></div>
+      <span class="save-badge" id="save-badge"></span>
     </div>
 
     <!-- Slots area -->
@@ -1262,6 +1273,7 @@ function renderLibrary() {
     t.addEventListener('click', () => assignLibraryItemToSlot(item.id, currentTab().activeSlot));
     grid.appendChild(t);
   });
+  scheduleSave();
 }
 
 function removeFromLibrary(libId) {
@@ -1284,6 +1296,7 @@ function updateDimBadge() {
 }
 
 function renderSlotsUI() {
+  scheduleSave();
   const container = document.getElementById('slots-scroll');
   container.innerHTML = '';
   const tab  = currentTab();
@@ -1583,13 +1596,203 @@ document.getElementById('btn-export').addEventListener('click', async () => {
 });
 
 // ─────────────────────────────────────────────
+//  PERSISTENCE (IndexedDB)
+// ─────────────────────────────────────────────
+
+const DB_NAME    = 'screenshot-studio-v1';
+const DB_VERSION = 1;
+let   db         = null;
+let   initialized = false;
+let   saveTimer   = null;
+let   fadeBadgeTimer = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('library')) d.createObjectStore('library', { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('meta'))    d.createObjectStore('meta',    { keyPath: 'key' });
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+function dbPut(store, value) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).put(value);
+    req.onsuccess = () => resolve();
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+function dbGetAll(store) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+function dbGet(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+function dbClear(store) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).clear();
+    req.onsuccess = () => resolve();
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+// Convert an HTMLImageElement to a JPEG data URL (lossy but compact)
+function imgToDataUrl(img) {
+  const c = document.createElement('canvas');
+  c.width  = img.naturalWidth;
+  c.height = img.naturalHeight;
+  c.getContext('2d').drawImage(img, 0, 0);
+  return c.toDataURL('image/jpeg', 0.88);
+}
+
+function setSaveBadge(state) {
+  const el = document.getElementById('save-badge');
+  if (!el) return;
+  clearTimeout(fadeBadgeTimer);
+  el.className = 'save-badge';
+  if (state === 'saving') {
+    el.textContent = 'Saving…';
+    el.classList.add('saving');
+  } else if (state === 'saved') {
+    el.textContent = 'Saved ✓';
+    el.classList.add('saved');
+    fadeBadgeTimer = setTimeout(() => el.classList.add('fade'), 2200);
+  }
+}
+
+async function saveState() {
+  if (!db) return;
+  setSaveBadge('saving');
+  try {
+    // 1. Save library images (overwrite)
+    await dbClear('library');
+    for (const item of state.library) {
+      const dataUrl = imgToDataUrl(item.img);
+      await dbPut('library', { id: item.id, dataUrl, name: item.name });
+    }
+
+    // 2. Save serialisable slot state (no Image objects)
+    const tabData = {};
+    for (const [tabKey, tab] of Object.entries(state.tabs)) {
+      tabData[tabKey] = {
+        orientation: tab.orientation,
+        activeSlot: tab.activeSlot,
+        slots: tab.slots.map(slot => {
+          const { screenshot, ...rest } = slot;
+          return rest;  // _libId kept, img reference dropped
+        }),
+      };
+    }
+    await dbPut('meta', {
+      key: 'state',
+      activeTab: state.activeTab,
+      libSeqNext: libSeq + 1,
+      tabs: tabData,
+    });
+
+    setSaveBadge('saved');
+  } catch (e) {
+    console.warn('Save failed:', e);
+    setSaveBadge('saved');  // don't alarm the user for transient errors
+  }
+}
+
+function scheduleSave() {
+  if (!initialized) return;
+  setSaveBadge('saving');
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveState, 900);
+}
+
+async function loadState() {
+  if (!db) return;
+  try {
+    // 1. Restore library
+    const libRows = await dbGetAll('library');
+    if (libRows.length) {
+      await Promise.all(libRows.map(row => new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => {
+          state.library.push({ id: row.id, img, name: row.name });
+          resolve();
+        };
+        img.onerror = () => resolve();  // skip broken entries
+        img.src = row.dataUrl;
+      })));
+      // Sort by id so order is preserved
+      state.library.sort((a, b) => a.id - b.id);
+    }
+
+    // 2. Restore slot state
+    const meta = await dbGet('meta', 'state');
+    if (!meta) return;
+
+    if (meta.libSeqNext) libSeq = meta.libSeqNext - 1;
+    if (meta.activeTab && state.tabs[meta.activeTab]) state.activeTab = meta.activeTab;
+
+    for (const [tabKey, saved] of Object.entries(meta.tabs || {})) {
+      if (!state.tabs[tabKey]) continue;
+      const tab = state.tabs[tabKey];
+      tab.orientation = saved.orientation || 'portrait';
+      tab.activeSlot  = saved.activeSlot  || 0;
+      tab.slots = (saved.slots || [defaultSlot()]).map(s => {
+        const slot = { ...defaultSlot(), ...s };
+        // Re-attach image from library
+        if (slot._libId != null) {
+          const item = state.library.find(i => i.id === slot._libId);
+          slot.screenshot = item ? item.img : null;
+          if (!item) slot._libId = null;
+        }
+        return slot;
+      });
+      if (!tab.slots.length) tab.slots = [defaultSlot()];
+      if (tab.activeSlot >= tab.slots.length) tab.activeSlot = 0;
+    }
+
+    // Sync active tab button
+    document.querySelectorAll('.tab-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.tab === state.activeTab);
+    });
+  } catch (e) {
+    console.warn('Could not restore state:', e);
+  }
+}
+
+// ─────────────────────────────────────────────
 //  INIT
 // ─────────────────────────────────────────────
 
-buildSwatches();
-updateOrientBtns();
-syncSidebarFromSlot();
-renderSlotsUI();
+async function init() {
+  try { db = await openDB(); } catch (e) { console.warn('IndexedDB unavailable:', e); }
+  await loadState();
+  initialized = true;
+  buildSwatches();
+  buildDesigns();
+  updateOrientBtns();
+  syncSidebarFromSlot();
+  renderSlotsUI();
+}
+
+init();
 </script>
 </body>
 </html>
