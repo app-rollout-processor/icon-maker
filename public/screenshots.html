@@ -176,6 +176,51 @@
     .swatch:hover { transform: scale(1.08); }
     .swatch.active { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(99,102,241,.3); }
 
+    /* Media library */
+    .lib-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin: 14px 0 8px; font-size: .72rem; font-weight: 700;
+      color: var(--muted); text-transform: uppercase; letter-spacing: .4px;
+    }
+    .lib-clear {
+      background: none; border: none; color: var(--danger);
+      font-size: .72rem; font-weight: 600; cursor: pointer; padding: 0;
+    }
+    .lib-clear:hover { text-decoration: underline; }
+    .lib-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    }
+    .lib-thumb {
+      position: relative; aspect-ratio: 1; border-radius: 7px; overflow: hidden;
+      cursor: pointer; border: 2px solid transparent; background: #f1f5f9;
+      transition: border-color .12s, transform .12s;
+    }
+    .lib-thumb:hover { transform: scale(1.06); }
+    .lib-thumb.active { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(99,102,241,.3); }
+    .lib-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .lib-thumb .lib-x {
+      position: absolute; top: 2px; right: 2px; width: 16px; height: 16px;
+      border-radius: 50%; border: none; background: rgba(0,0,0,.6); color: #fff;
+      font-size: .65rem; line-height: 1; cursor: pointer; display: none;
+      align-items: center; justify-content: center; padding: 0;
+    }
+    .lib-thumb:hover .lib-x { display: flex; }
+    .lib-hint { font-size: .72rem; color: var(--muted); margin-top: 10px; line-height: 1.4; }
+
+    /* Design templates */
+    .design-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+    }
+    .design-btn {
+      border: 1.5px solid var(--border); background: var(--card); color: var(--text);
+      border-radius: 9px; padding: 9px 8px; font-size: .76rem; font-weight: 600;
+      cursor: pointer; text-align: left; transition: border-color .12s, background .12s;
+      display: flex; flex-direction: column; gap: 2px;
+    }
+    .design-btn:hover { border-color: var(--primary); }
+    .design-btn.active { border-color: var(--primary); background: #f5f3ff; box-shadow: 0 0 0 1px rgba(99,102,241,.25); }
+    .design-btn .d-desc { font-size: .66rem; font-weight: 500; color: var(--muted); }
+
     /* Form fields */
     .field-row {
       display: flex;
@@ -512,20 +557,26 @@
 
     <!-- Upload -->
     <div class="sidebar-section">
-      <div class="sidebar-heading">App Screenshot</div>
+      <div class="sidebar-heading">App Screenshots</div>
       <div class="upload-zone" id="uz" role="button" tabindex="0">
         <span class="uz-icon">🖼️</span>
-        <p><strong>Drag &amp; drop</strong> screenshot<br>or <button class="uz-browse" type="button" id="uz-browse">browse</button></p>
+        <p><strong>Drag &amp; drop</strong> images<br>or <button class="uz-browse" type="button" id="uz-browse">browse</button> (multiple)</p>
       </div>
-      <div class="upload-zone-preview" id="uzp">
-        <img id="uzp-img" alt="">
-        <div class="uzp-info">
-          <div class="uzp-name" id="uzp-name"></div>
-          <div class="uzp-dims" id="uzp-dims"></div>
-        </div>
-        <button class="btn-icon-sm" id="uzp-remove" title="Remove screenshot">✕</button>
+      <input type="file" class="hidden-file" id="uz-file" accept="image/*" multiple>
+
+      <!-- Media library -->
+      <div class="lib-head" id="lib-head" style="display:none;">
+        <span id="lib-count">Library</span>
+        <button class="lib-clear" id="lib-clear" type="button" title="Clear all">Clear</button>
       </div>
-      <input type="file" class="hidden-file" id="uz-file" accept="image/*">
+      <div class="lib-grid" id="lib-grid"></div>
+      <p class="lib-hint" id="lib-hint" style="display:none;">Click an image to set it for slot <strong id="lib-hint-slot">#1</strong></p>
+    </div>
+
+    <!-- Design -->
+    <div class="sidebar-section">
+      <div class="sidebar-heading">Design</div>
+      <div class="design-grid" id="design-grid"></div>
     </div>
 
     <!-- Background -->
@@ -662,6 +713,17 @@ const BG_PRESETS = [
   { label:'Black',  type:'solid',    c1:'#111111', c2:'#111111' },
 ];
 
+const DESIGNS = [
+  { id:'classic',  label:'Classic',  desc:'Framed, clean text',   textBand:0.18, devScale:1.00, rotate:0,  headlineScale:1.0,  captionScale:1.0, uppercase:false, textCard:false },
+  { id:'bold',     label:'Bold',     desc:'Big caps headline',    textBand:0.25, devScale:0.90, rotate:0,  headlineScale:1.35, captionScale:1.0, uppercase:true,  textCard:false },
+  { id:'minimal',  label:'Minimal',  desc:'Large device, tiny text', textBand:0.11, devScale:1.06, rotate:0, headlineScale:0.82, captionScale:0.9, uppercase:false, textCard:false },
+  { id:'spotlight',label:'Spotlight',desc:'Text on a glass card',  textBand:0.20, devScale:0.92, rotate:0,  headlineScale:1.05, captionScale:1.0, uppercase:false, textCard:true  },
+  { id:'showcase', label:'Showcase', desc:'Tilted device left',    textBand:0.20, devScale:0.88, rotate:-7, headlineScale:1.05, captionScale:1.0, uppercase:false, textCard:false },
+  { id:'angle',    label:'Angle',    desc:'Tilted device right',   textBand:0.20, devScale:0.88, rotate:7,  headlineScale:1.05, captionScale:1.0, uppercase:false, textCard:false },
+];
+
+function getDesign(id) { return DESIGNS.find(d => d.id === id) || DESIGNS[0]; }
+
 const STORE_CONFIGS = {
   'apple-iphone':  { label:'Apple iPhone',  frame:'iphone',         portrait:{w:1290,h:2796}, landscape:{w:2796,h:1290} },
   'apple-ipad':    { label:'Apple iPad',    frame:'ipad',           portrait:{w:2048,h:2732}, landscape:{w:2732,h:2048} },
@@ -697,11 +759,15 @@ function defaultSlot() {
     textPosition: 'bottom',
     frameStyle: 'device',
     screenshotFit: 'cover',
+    design: 'classic',
   };
 }
 
+let libSeq = 0;
+
 const state = {
   activeTab: 'apple-iphone',
+  library: [],   // [{ id, img, name }]
   tabs: {
     'apple-iphone':  { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
     'apple-ipad':    { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
@@ -904,11 +970,29 @@ function drawFittedImage(ctx, img, rx, ry, rw, rh, fit) {
   ctx.drawImage(img, dx, dy, dw, dh);
 }
 
-function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH) {
-  const headlineSize = canvasH * 0.048;
-  const captionSize  = canvasH * 0.026;
+function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH, design) {
+  const headlineSize = canvasH * 0.048 * design.headlineScale;
+  const captionSize  = canvasH * 0.026 * design.captionScale;
   const maxW = canvasW * 0.88;
   const cx = tbX + tbW / 2;
+  let headline = slot.headline || '';
+  if (design.uppercase) headline = headline.toUpperCase();
+
+  // Glass card behind text
+  if (design.textCard && (headline || slot.caption)) {
+    ctx.save();
+    const cardW = canvasW * 0.86;
+    const cardH = tbH * 0.74;
+    const cardX = (canvasW - cardW) / 2;
+    const cardY = tbY + (tbH - cardH) / 2;
+    roundRectPath(ctx, cardX, cardY, cardW, cardH, cardH * 0.18);
+    ctx.fillStyle = 'rgba(255,255,255,0.14)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = canvasW * 0.002;
+    ctx.stroke();
+    ctx.restore();
+  }
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
@@ -921,7 +1005,7 @@ function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH) {
   ctx.shadowBlur = headlineSize * 0.3;
   ctx.shadowOffsetY = headlineSize * 0.05;
   const hlY = tbY + tbH * 0.38;
-  ctx.fillText(slot.headline || '', cx, hlY, maxW);
+  ctx.fillText(headline, cx, hlY, maxW);
   ctx.restore();
 
   // Caption
@@ -946,11 +1030,13 @@ function renderSlot(slot, storeKey, targetW, targetH) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
 
+  const design = getDesign(slot.design);
+
   // 1. Background
   drawBackground(ctx, targetW, targetH, slot);
 
   // 2. Layout
-  const textBandH = targetH * 0.18;
+  const textBandH = targetH * design.textBand;
   const deviceAreaH = targetH - textBandH;
 
   let textBandY, deviceAreaY;
@@ -962,9 +1048,9 @@ function renderSlot(slot, storeKey, targetW, targetH) {
     deviceAreaY  = textBandH;
   }
 
-  // 3. Device frame rect
-  const padSide   = deviceAreaH * 0.05;
-  const padTopBot = deviceAreaH * 0.02;
+  // 3. Device frame rect (fit then scale by design)
+  const padSide   = deviceAreaH * 0.06;
+  const padTopBot = deviceAreaH * 0.03;
   const deviceAspect = targetW / targetH;
 
   let dfW, dfH;
@@ -974,34 +1060,37 @@ function renderSlot(slot, storeKey, targetW, targetH) {
     dfW = targetW - padSide * 2;
     dfH = dfW / deviceAspect;
   }
+  dfW *= design.devScale;
+  dfH *= design.devScale;
 
-  const dfX = (targetW - dfW) / 2;
-  const dfY = deviceAreaY + padTopBot;
+  const cx = targetW / 2;
+  const cy = deviceAreaY + (deviceAreaH / 2);
 
-  let screenRect = { x: dfX, y: dfY, w: dfW, h: dfH, r: 0 };
-
-  // 4. Draw frame
+  // 4-5. Draw frame + screenshot inside a centered (optionally rotated) transform
   const cfg = STORE_CONFIGS[storeKey];
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (design.rotate) ctx.rotate(design.rotate * Math.PI / 180);
+
+  const fx = -dfW / 2, fy = -dfH / 2;
+  let screenRect;
   if (slot.frameStyle === 'device') {
-    screenRect = drawDeviceFrame(ctx, dfX, dfY, dfW, dfH, cfg.frame);
+    screenRect = drawDeviceFrame(ctx, fx, fy, dfW, dfH, cfg.frame);
   } else if (slot.frameStyle === 'shadow') {
-    // shadow-only: just a shadow box
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.5)';
     ctx.shadowBlur  = dfW * 0.06;
     ctx.shadowOffsetY = dfW * 0.02;
     const sr2 = dfW * 0.04;
-    roundRectPath(ctx, dfX, dfY, dfW, dfH, sr2);
+    roundRectPath(ctx, fx, fy, dfW, dfH, sr2);
     ctx.fillStyle = 'rgba(0,0,0,0.01)';
     ctx.fill();
     ctx.restore();
-    screenRect = { x: dfX, y: dfY, w: dfW, h: dfH, r: sr2 };
+    screenRect = { x: fx, y: fy, w: dfW, h: dfH, r: sr2 };
   } else {
-    // none - use full device area
-    screenRect = { x: dfX, y: dfY, w: dfW, h: dfH, r: 0 };
+    screenRect = { x: fx, y: fy, w: dfW, h: dfH, r: 0 };
   }
 
-  // 5. Draw screenshot in screen rect
   if (slot.screenshot) {
     ctx.save();
     roundRectPath(ctx, screenRect.x, screenRect.y, screenRect.w, screenRect.h, screenRect.r);
@@ -1009,9 +1098,10 @@ function renderSlot(slot, storeKey, targetW, targetH) {
     drawFittedImage(ctx, slot.screenshot, screenRect.x, screenRect.y, screenRect.w, screenRect.h, slot.screenshotFit);
     ctx.restore();
   }
+  ctx.restore();
 
   // 6. Text overlay
-  drawTextOverlay(ctx, slot, 0, textBandY, targetW, textBandH, targetW, targetH);
+  drawTextOverlay(ctx, slot, 0, textBandY, targetW, textBandH, targetW, targetH, design);
 
   return canvas;
 }
@@ -1073,21 +1163,117 @@ function syncSidebarFromSlot() {
   document.getElementById('frame-style').value  = slot.frameStyle;
   document.getElementById('screenshot-fit').value = slot.screenshotFit;
 
-  // Upload preview
-  if (slot.screenshot) {
-    document.getElementById('uz').style.display = 'none';
-    const uzp = document.getElementById('uzp');
-    uzp.style.display = 'flex';
-    document.getElementById('uzp-img').src = slot.screenshot.src;
-    document.getElementById('uzp-name').textContent = slot._screenshotName || 'screenshot.png';
-    document.getElementById('uzp-dims').textContent = `${slot.screenshot.naturalWidth}×${slot.screenshot.naturalHeight}`;
-  } else {
-    document.getElementById('uz').style.display = '';
-    document.getElementById('uzp').style.display = 'none';
+  buildSwatches();
+  buildDesigns();
+  renderLibrary();
+  updateDimBadge();
+}
+
+// ─────────────────────────────────────────────
+//  DESIGN TEMPLATES UI
+// ─────────────────────────────────────────────
+
+function buildDesigns() {
+  const grid = document.getElementById('design-grid');
+  grid.innerHTML = '';
+  const active = currentSlot().design;
+  DESIGNS.forEach(d => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'design-btn' + (d.id === active ? ' active' : '');
+    btn.innerHTML = `<span>${d.label}</span><span class="d-desc">${d.desc}</span>`;
+    btn.addEventListener('click', () => {
+      currentSlot().design = d.id;
+      buildDesigns();
+      refreshActiveSlot();
+    });
+    grid.appendChild(btn);
+  });
+}
+
+// ─────────────────────────────────────────────
+//  MEDIA LIBRARY
+// ─────────────────────────────────────────────
+
+function addToLibrary(file) {
+  return new Promise(resolve => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const item = { id: ++libSeq, img, name: file.name };
+      state.library.push(item);
+      resolve(item);
+    };
+    img.onerror = () => { alert('Could not load image: ' + file.name); resolve(null); };
+    img.src = url;
+  });
+}
+
+async function addFilesToLibrary(files, assignFirstToActive) {
+  const imgs = [...files].filter(f => f.type.startsWith('image/'));
+  if (!imgs.length) return;
+  let first = null;
+  for (const f of imgs) {
+    const item = await addToLibrary(f);
+    if (item && !first) first = item;
+  }
+  if (assignFirstToActive && first) assignLibraryItemToSlot(first.id, currentTab().activeSlot);
+  renderLibrary();
+}
+
+function assignLibraryItemToSlot(libId, slotIdx) {
+  const item = state.library.find(i => i.id === libId);
+  if (!item) return;
+  const tab = currentTab();
+  tab.slots[slotIdx].screenshot = item.img;
+  tab.slots[slotIdx]._libId = libId;
+  if (tab.activeSlot === slotIdx) renderLibrary();
+  renderSlotsUI();
+}
+
+function renderLibrary() {
+  const grid  = document.getElementById('lib-grid');
+  const head  = document.getElementById('lib-head');
+  const hint  = document.getElementById('lib-hint');
+  grid.innerHTML = '';
+
+  const has = state.library.length > 0;
+  head.style.display = has ? 'flex' : 'none';
+  hint.style.display = has ? 'block' : 'none';
+  if (has) {
+    document.getElementById('lib-count').textContent = `Library (${state.library.length})`;
+    document.getElementById('lib-hint-slot').textContent = `#${currentTab().activeSlot + 1}`;
   }
 
-  buildSwatches();
-  updateDimBadge();
+  const activeLibId = currentSlot()._libId;
+  state.library.forEach(item => {
+    const t = document.createElement('div');
+    t.className = 'lib-thumb' + (item.id === activeLibId ? ' active' : '');
+    t.title = item.name;
+    const im = document.createElement('img');
+    im.src = item.img.src;
+    t.appendChild(im);
+    const x = document.createElement('button');
+    x.className = 'lib-x';
+    x.textContent = '✕';
+    x.title = 'Remove from library';
+    x.addEventListener('click', e => { e.stopPropagation(); removeFromLibrary(item.id); });
+    t.appendChild(x);
+    t.addEventListener('click', () => assignLibraryItemToSlot(item.id, currentTab().activeSlot));
+    grid.appendChild(t);
+  });
+}
+
+function removeFromLibrary(libId) {
+  state.library = state.library.filter(i => i.id !== libId);
+  // Clear any slots referencing it
+  Object.values(state.tabs).forEach(tab => {
+    tab.slots.forEach(slot => {
+      if (slot._libId === libId) { slot.screenshot = null; slot._libId = null; }
+    });
+  });
+  renderLibrary();
+  renderSlotsUI();
 }
 
 function updateDimBadge() {
@@ -1207,29 +1393,21 @@ function refreshActiveSlot() {
 //  UPLOAD HANDLING
 // ─────────────────────────────────────────────
 
-function loadScreenshotIntoSlot(file, slotIdx) {
-  const tab = currentTab();
-  const url = URL.createObjectURL(file);
-  const img = new Image();
-  img.onload = () => {
-    tab.slots[slotIdx].screenshot = img;
-    tab.slots[slotIdx]._screenshotName = file.name;
-    if (tab.activeSlot === slotIdx) syncSidebarFromSlot();
-    renderSlotsUI();
-  };
-  img.onerror = () => alert('Could not load image.');
-  img.src = url;
+// Drop a file directly onto a slot card: add to library + assign to that slot
+async function loadScreenshotIntoSlot(file, slotIdx) {
+  if (!file.type.startsWith('image/')) return;
+  const item = await addToLibrary(file);
+  renderLibrary();
+  if (item) assignLibraryItemToSlot(item.id, slotIdx);
 }
 
-// Sidebar upload zone
-const uzEl      = document.getElementById('uz');
-const uzFile    = document.getElementById('uz-file');
-const uzBrowse  = document.getElementById('uz-browse');
-const uzpEl     = document.getElementById('uzp');
-const uzpRemove = document.getElementById('uzp-remove');
+// Sidebar upload zone (multi-file → library)
+const uzEl     = document.getElementById('uz');
+const uzFile   = document.getElementById('uz-file');
+const uzBrowse = document.getElementById('uz-browse');
 
-uzBrowse.addEventListener('click', () => uzFile.click());
-uzEl.addEventListener('click', (e) => { if (e.target !== uzBrowse) uzFile.click(); });
+uzBrowse.addEventListener('click', e => { e.stopPropagation(); uzFile.click(); });
+uzEl.addEventListener('click', e => { if (e.target !== uzBrowse) uzFile.click(); });
 uzEl.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') uzFile.click(); });
 
 uzEl.addEventListener('dragover', e => { e.preventDefault(); uzEl.classList.add('over'); });
@@ -1237,22 +1415,23 @@ uzEl.addEventListener('dragleave', () => uzEl.classList.remove('over'));
 uzEl.addEventListener('drop', e => {
   e.preventDefault();
   uzEl.classList.remove('over');
-  const file = e.dataTransfer.files[0];
-  if (file && file.type.startsWith('image/')) loadScreenshotIntoSlot(file, currentTab().activeSlot);
+  // assign first dropped image to active slot if it currently has none
+  addFilesToLibrary(e.dataTransfer.files, !currentSlot().screenshot);
 });
 
 uzFile.addEventListener('change', () => {
-  if (uzFile.files[0]) {
-    loadScreenshotIntoSlot(uzFile.files[0], currentTab().activeSlot);
+  if (uzFile.files.length) {
+    addFilesToLibrary(uzFile.files, !currentSlot().screenshot);
     uzFile.value = '';
   }
 });
 
-uzpRemove.addEventListener('click', () => {
-  const slot = currentSlot();
-  slot.screenshot = null;
-  slot._screenshotName = null;
-  syncSidebarFromSlot();
+document.getElementById('lib-clear').addEventListener('click', () => {
+  if (!state.library.length) return;
+  if (!confirm('Remove all images from the library? Slots using them will be cleared.')) return;
+  state.library = [];
+  Object.values(state.tabs).forEach(tab => tab.slots.forEach(slot => { slot.screenshot = null; slot._libId = null; }));
+  renderLibrary();
   renderSlotsUI();
 });
 
