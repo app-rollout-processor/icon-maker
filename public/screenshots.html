@@ -496,6 +496,14 @@
       border-radius: 4px; transition: background .12s, color .12s; line-height: 1;
     }
     .slot-clone-btn:hover { background: #eff6ff; color: var(--primary); }
+    .apply-all-btn {
+      width: 100%; margin-top: 12px; padding: 8px 10px;
+      background: var(--card); border: 1.5px solid var(--border);
+      color: var(--text); border-radius: 9px; font-size: .76rem; font-weight: 600;
+      cursor: pointer; transition: border-color .12s, background .12s;
+    }
+    .apply-all-btn:hover { border-color: var(--primary); background: #f5f3ff; }
+    .apply-all-btn.flash { border-color: var(--success); background: #dcfce7; color: #166534; }
 
     /* Add slot button */
     .add-slot-btn {
@@ -652,6 +660,7 @@
           <option value="diagonal">Diagonal</option>
         </select>
       </div>
+      <button type="button" class="apply-all-btn" id="bg-apply-all">Apply background to all slots</button>
     </div>
 
     <!-- Text -->
@@ -1681,6 +1690,22 @@ document.querySelectorAll('input[name="bg-type"], input[name="txt-pos"]').forEac
 });
 ['frame-style','screenshot-fit','bg-pattern'].forEach(id => {
   document.getElementById(id).addEventListener('change', onSlotChange);
+});
+
+document.getElementById('bg-apply-all').addEventListener('click', () => {
+  const src = currentSlot();
+  currentTab().slots.forEach(slot => {
+    slot.bgPreset  = src.bgPreset;
+    slot.bgType    = src.bgType;
+    slot.bgColor   = src.bgColor;
+    slot.bgColor2  = src.bgColor2;
+    slot.bgPattern = src.bgPattern;
+  });
+  renderSlotsUI();
+  const btn = document.getElementById('bg-apply-all');
+  btn.classList.add('flash');
+  btn.textContent = 'Applied to all slots ✓';
+  setTimeout(() => { btn.classList.remove('flash'); btn.textContent = 'Apply background to all slots'; }, 1500);
 });
 
 // ─────────────────────────────────────────────
