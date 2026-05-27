@@ -227,7 +227,7 @@
 
     /* Design templates */
     .design-grid {
-      display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
     }
     .design-btn {
       border: 1.5px solid var(--border); background: var(--card); color: var(--text);
@@ -783,13 +783,23 @@ const BG_PRESETS = [
   { label:'Black',  type:'solid',    c1:'#111111', c2:'#111111' },
 ];
 
+// layoutMode: 'standard' | 'peek-top' | 'peek-bottom' | 'side-left' | 'side-right'
 const DESIGNS = [
-  { id:'classic',  label:'Classic',  desc:'Framed, clean text',   textBand:0.18, devScale:1.00, rotate:0,  headlineScale:1.0,  captionScale:1.0, uppercase:false, textCard:false },
-  { id:'bold',     label:'Bold',     desc:'Big caps headline',    textBand:0.25, devScale:0.90, rotate:0,  headlineScale:1.35, captionScale:1.0, uppercase:true,  textCard:false },
-  { id:'minimal',  label:'Minimal',  desc:'Large device, tiny text', textBand:0.11, devScale:1.06, rotate:0, headlineScale:0.82, captionScale:0.9, uppercase:false, textCard:false },
-  { id:'spotlight',label:'Spotlight',desc:'Text on a glass card',  textBand:0.20, devScale:0.92, rotate:0,  headlineScale:1.05, captionScale:1.0, uppercase:false, textCard:true  },
-  { id:'showcase', label:'Showcase', desc:'Tilted device left',    textBand:0.20, devScale:0.88, rotate:-7, headlineScale:1.05, captionScale:1.0, uppercase:false, textCard:false },
-  { id:'angle',    label:'Angle',    desc:'Tilted device right',   textBand:0.20, devScale:0.88, rotate:7,  headlineScale:1.05, captionScale:1.0, uppercase:false, textCard:false },
+  // ── Standard ──
+  { id:'classic',     label:'Classic',    desc:'Full frame · text band',    layoutMode:'standard',    textBand:0.18, devScale:1.00, rotate:0,   headlineScale:1.0,  captionScale:1.0, uppercase:false, textCard:false },
+  { id:'bold',        label:'Bold',       desc:'All-caps · big band',       layoutMode:'standard',    textBand:0.26, devScale:0.90, rotate:0,   headlineScale:1.30, captionScale:1.0, uppercase:true,  textCard:false },
+  { id:'minimal',     label:'Minimal',    desc:'Big device · tiny text',    layoutMode:'standard',    textBand:0.11, devScale:1.06, rotate:0,   headlineScale:0.82, captionScale:0.9, uppercase:false, textCard:false },
+  { id:'spotlight',   label:'Spotlight',  desc:'Glass card over text',      layoutMode:'standard',    textBand:0.20, devScale:0.92, rotate:0,   headlineScale:1.05, captionScale:1.0, uppercase:false, textCard:true  },
+  // ── Tilted ──
+  { id:'showcase',    label:'Tilt L',     desc:'Device leans left',         layoutMode:'standard',    textBand:0.20, devScale:0.88, rotate:-7,  headlineScale:1.05, captionScale:1.0, uppercase:false, textCard:false },
+  { id:'angle',       label:'Tilt R',     desc:'Device leans right',        layoutMode:'standard',    textBand:0.20, devScale:0.88, rotate:7,   headlineScale:1.05, captionScale:1.0, uppercase:false, textCard:false },
+  { id:'big-tilt',    label:'Big Tilt',   desc:'Oversized steep tilt',      layoutMode:'standard',    textBand:0.22, devScale:1.18, rotate:-14, headlineScale:1.1,  captionScale:1.0, uppercase:false, textCard:false },
+  // ── Peek / crop ──
+  { id:'peek-top',    label:'Peek Top',   desc:'Slides in from top edge',   layoutMode:'peek-top',    textBand:0.22, devScale:1.12, rotate:0,   headlineScale:1.0,  captionScale:1.0, uppercase:false, textCard:false },
+  { id:'peek-bottom', label:'Peek Bot',   desc:'Slides in from bottom',     layoutMode:'peek-bottom', textBand:0.22, devScale:1.12, rotate:0,   headlineScale:1.0,  captionScale:1.0, uppercase:false, textCard:false },
+  // ── Side text ──
+  { id:'text-left',   label:'Text Left',  desc:'Text left · device right',  layoutMode:'side-left',   textBand:0.36, devScale:1.00, rotate:4,   headlineScale:1.1,  captionScale:1.0, uppercase:false, textCard:false },
+  { id:'text-right',  label:'Text Right', desc:'Device left · text right',  layoutMode:'side-right',  textBand:0.36, devScale:1.00, rotate:-4,  headlineScale:1.1,  captionScale:1.0, uppercase:false, textCard:false },
 ];
 
 function getDesign(id) { return DESIGNS.find(d => d.id === id) || DESIGNS[0]; }
@@ -1084,39 +1094,84 @@ function parseTags(str) {
   return (str || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 5);
 }
 
+// Word-wrap text into lines that fit within maxW
+function wrapLines(ctx, text, maxW) {
+  const words = (text || '').split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    const test = line ? line + ' ' + word : word;
+    if (!line || ctx.measureText(test).width <= maxW) {
+      line = test;
+    } else {
+      lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
 function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH, design) {
-  const headlineSize = canvasH * 0.046 * design.headlineScale;
-  const accentSize   = canvasH * 0.050 * design.headlineScale;
-  const captionSize  = canvasH * 0.026 * design.captionScale;
-  const pillFont     = canvasH * 0.020;
-  const maxW = canvasW * 0.88;
-  const cx = tbX + tbW / 2;
   const fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+  const isSide = tbW < canvasW * 0.60;   // narrow vertical column (side-left/right layouts)
+
+  // Font sizes: for narrow columns cap to 28% of band width to avoid over-squish
+  const baseFontH = canvasH * 0.046;
+  const headlineSize = Math.min(baseFontH, isSide ? tbW * 0.28 : Infinity) * design.headlineScale;
+  const accentSize   = Math.min(canvasH * 0.050, isSide ? tbW * 0.30 : Infinity) * design.headlineScale;
+  const captionSize  = Math.min(canvasH * 0.026, isSide ? tbW * 0.16 : Infinity) * design.captionScale;
+  const pillFont     = Math.min(canvasH * 0.020, isSide ? tbW * 0.12 : Infinity);
+
+  const maxW = tbW * 0.88;
+  // Side layouts: left-align from inner edge; centred otherwise
+  const isLeft  = isSide && tbX < canvasW * 0.3;  // left text strip
+  const isRight = isSide && !isLeft;               // right text strip
+  const alignX  = isLeft  ? tbX + tbW * 0.10
+                : isRight ? tbX + tbW * 0.10
+                : tbX + tbW / 2;
+  const textAlign = isSide ? 'left' : 'center';
 
   let headline = slot.headline || '';
   let accent   = slot.headlineAccent || '';
   if (design.uppercase) { headline = headline.toUpperCase(); accent = accent.toUpperCase(); }
   const caption = slot.caption || '';
   const tags = parseTags(slot.tags);
+  const gap = canvasH * (isSide ? 0.008 : 0.011);
 
-  // Build a vertical stack of elements with measured heights
-  const gap = canvasH * 0.011;
+  // Build element list with word-wrapped lines
   const els = [];
-  if (headline) els.push({ type:'headline', h: headlineSize });
-  if (accent)   els.push({ type:'accent',   h: accentSize });
-  if (caption)  els.push({ type:'caption',  h: captionSize });
-  if (tags.length) els.push({ type:'tags',  h: pillFont * 2.0 });
+  if (headline) {
+    ctx.font = `700 ${headlineSize}px ${fontFamily}`;
+    const lines = isSide ? wrapLines(ctx, headline, maxW) : [headline];
+    els.push({ type:'headline', lines, lineH: headlineSize * 1.12 });
+  }
+  if (accent) {
+    ctx.font = `800 ${accentSize}px ${fontFamily}`;
+    const lines = isSide ? wrapLines(ctx, accent, maxW) : [accent];
+    els.push({ type:'accent', lines, lineH: accentSize * 1.12 });
+  }
+  if (caption) {
+    ctx.font = `400 ${captionSize}px ${fontFamily}`;
+    const lines = isSide ? wrapLines(ctx, caption, maxW) : [caption];
+    els.push({ type:'caption', lines, lineH: captionSize * 1.20 });
+  }
+  if (tags.length) {
+    els.push({ type:'tags', lines: [], lineH: pillFont * 2.2 });
+  }
 
-  const totalH = els.reduce((s, e) => s + e.h, 0) + gap * Math.max(0, els.length - 1);
+  const totalH = els.reduce((s, e) => s + e.lineH * (e.lines.length || 1), 0)
+               + gap * Math.max(0, els.length - 1);
 
-  // Glass card behind text
+  // Glass card
   if (design.textCard && els.length) {
     ctx.save();
-    const cardW = canvasW * 0.86;
-    const cardH = Math.min(tbH * 0.9, totalH + canvasH * 0.04);
-    const cardX = (canvasW - cardW) / 2;
+    const cardW = tbW * 0.90;
+    const cardH = Math.min(tbH * 0.88, totalH + canvasH * 0.04);
+    const cardX = tbX + (tbW - cardW) / 2;
     const cardY = tbY + (tbH - cardH) / 2;
-    roundRectPath(ctx, cardX, cardY, cardW, cardH, cardH * 0.16);
+    roundRectPath(ctx, cardX, cardY, cardW, cardH, cardH * 0.14);
     ctx.fillStyle = 'rgba(255,255,255,0.14)';
     ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,0.22)';
@@ -1125,43 +1180,61 @@ function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH, design
     ctx.restore();
   }
 
-  ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  ctx.textAlign = textAlign;
 
-  let y = tbY + (tbH - totalH) / 2;
-  for (const el of els) {
-    const midY = y + el.h / 2;
+  let ey = tbY + (tbH - totalH) / 2;
+
+  for (let i = 0; i < els.length; i++) {
+    const el = els[i];
+
     if (el.type === 'headline') {
       ctx.save();
       ctx.font = `700 ${headlineSize}px ${fontFamily}`;
       ctx.fillStyle = slot.headlineColor;
-      ctx.shadowColor = 'rgba(0,0,0,0.3)';
-      ctx.shadowBlur = headlineSize * 0.3;
-      ctx.shadowOffsetY = headlineSize * 0.05;
-      ctx.fillText(headline, cx, midY, maxW);
+      ctx.shadowColor = 'rgba(0,0,0,0.32)';
+      ctx.shadowBlur  = headlineSize * 0.28;
+      ctx.shadowOffsetY = headlineSize * 0.04;
+      for (const line of el.lines) {
+        ctx.fillText(line, alignX, ey + el.lineH / 2, maxW);
+        ey += el.lineH;
+      }
       ctx.restore();
+
     } else if (el.type === 'accent') {
       ctx.save();
       ctx.font = `800 ${accentSize}px ${fontFamily}`;
       ctx.fillStyle = slot.accentColor || '#fde047';
-      ctx.shadowColor = 'rgba(0,0,0,0.3)';
-      ctx.shadowBlur = accentSize * 0.3;
-      ctx.shadowOffsetY = accentSize * 0.05;
-      ctx.fillText(accent, cx, midY, maxW);
+      ctx.shadowColor = 'rgba(0,0,0,0.32)';
+      ctx.shadowBlur  = accentSize * 0.28;
+      ctx.shadowOffsetY = accentSize * 0.04;
+      for (const line of el.lines) {
+        ctx.fillText(line, alignX, ey + el.lineH / 2, maxW);
+        ey += el.lineH;
+      }
       ctx.restore();
+
     } else if (el.type === 'caption') {
       ctx.save();
       ctx.font = `400 ${captionSize}px ${fontFamily}`;
       ctx.fillStyle = slot.headlineColor;
       ctx.globalAlpha = 0.82;
       ctx.shadowColor = 'rgba(0,0,0,0.2)';
-      ctx.shadowBlur = captionSize * 0.3;
-      ctx.fillText(caption, cx, midY, maxW);
+      ctx.shadowBlur  = captionSize * 0.28;
+      for (const line of el.lines) {
+        ctx.fillText(line, alignX, ey + el.lineH / 2, maxW);
+        ey += el.lineH;
+      }
       ctx.restore();
+
     } else if (el.type === 'tags') {
-      drawTagPills(ctx, tags, cx, midY, pillFont, slot, maxW, fontFamily);
+      // Pills centred within the text band (even in side layouts)
+      const pillCX = isSide ? tbX + tbW / 2 : alignX;
+      drawTagPills(ctx, tags, pillCX, ey + el.lineH / 2, pillFont, slot, maxW, fontFamily);
+      ey += el.lineH;
     }
-    y += el.h + gap;
+
+    if (i < els.length - 1) ey += gap;
   }
 }
 
@@ -1210,46 +1283,81 @@ function renderSlot(slot, storeKey, targetW, targetH) {
   ctx.imageSmoothingQuality = 'high';
 
   const design = getDesign(slot.design);
+  const layoutMode = design.layoutMode || 'standard';
+  const aspect = targetW / targetH;  // portrait: ~0.46, landscape: ~2.17
 
   // 1. Background
   drawBackground(ctx, targetW, targetH, slot);
 
-  // 2. Layout
+  // 2. Compute layout → { cx, cy, dfW, dfH, textArea }
   let textBandFrac = design.textBand;
-  if (slot.headlineAccent) textBandFrac += 0.05;
-  if (parseTags(slot.tags).length) textBandFrac += 0.05;
-  textBandFrac = Math.min(textBandFrac, 0.42);
-  const textBandH = targetH * textBandFrac;
-  const deviceAreaH = targetH - textBandH;
+  if (layoutMode === 'standard') {
+    if (slot.headlineAccent)           textBandFrac += 0.05;
+    if (parseTags(slot.tags).length)   textBandFrac += 0.05;
+    textBandFrac = Math.min(textBandFrac, 0.42);
+  }
 
-  let textBandY, deviceAreaY;
-  if (slot.textPosition === 'bottom') {
-    deviceAreaY  = 0;
-    textBandY    = deviceAreaH;
+  let cx, cy, dfW, dfH, textArea;
+
+  if (layoutMode === 'side-left' || layoutMode === 'side-right') {
+    // ── Side text: vertical text strip on left or right ──
+    const textW   = targetW * textBandFrac;
+    const devAreaX = layoutMode === 'side-left' ? textW : 0;
+    const devAreaW = targetW - textW;
+
+    // Fit device inside the device column, preserving aspect ratio
+    dfW = devAreaW * 0.90 * design.devScale;
+    dfH = dfW / aspect;
+    if (dfH > targetH * 0.94) { dfH = targetH * 0.94; dfW = dfH * aspect; }
+
+    cx = devAreaX + devAreaW / 2;
+    cy = targetH / 2;
+    textArea = layoutMode === 'side-left'
+      ? { x: 0,               y: 0, w: textW, h: targetH }
+      : { x: targetW - textW, y: 0, w: textW, h: targetH };
+
+  } else if (layoutMode === 'peek-top') {
+    // ── Device slides in from top, text at bottom ──
+    const textH = targetH * textBandFrac;
+    textArea = { x: 0, y: targetH - textH, w: targetW, h: textH };
+    // Oversized device: top portion is cropped off canvas
+    dfH = targetH * design.devScale;
+    dfW = dfH * aspect;
+    if (dfW < targetW * 0.88) { dfW = targetW * 0.88; dfH = dfW / aspect; }
+    cx = targetW / 2;
+    cy = targetH * 0.23;   // center high → bottom of device is visible
+
+  } else if (layoutMode === 'peek-bottom') {
+    // ── Device slides in from bottom, text at top ──
+    const textH = targetH * textBandFrac;
+    textArea = { x: 0, y: 0, w: targetW, h: textH };
+    dfH = targetH * design.devScale;
+    dfW = dfH * aspect;
+    if (dfW < targetW * 0.88) { dfW = targetW * 0.88; dfH = dfW / aspect; }
+    cx = targetW / 2;
+    cy = targetH * 0.77;   // center low → top of device is visible
+
   } else {
-    textBandY    = 0;
-    deviceAreaY  = textBandH;
+    // ── Standard / big-tilt ──
+    const textBandH   = targetH * textBandFrac;
+    const deviceAreaH = targetH - textBandH;
+    const textBandY   = slot.textPosition === 'bottom' ? deviceAreaH : 0;
+    const deviceAreaY = slot.textPosition === 'bottom' ? 0 : textBandH;
+    textArea = { x: 0, y: textBandY, w: targetW, h: textBandH };
+
+    const padSide   = deviceAreaH * 0.06;
+    const padTopBot = deviceAreaH * 0.03;
+    dfH = deviceAreaH - padTopBot * 2;
+    dfW = dfH * aspect;
+    if (dfW > targetW - padSide * 2) { dfW = targetW - padSide * 2; dfH = dfW / aspect; }
+    dfW *= design.devScale;
+    dfH *= design.devScale;
+
+    cx = targetW / 2;
+    cy = deviceAreaY + deviceAreaH / 2;
   }
 
-  // 3. Device frame rect (fit then scale by design)
-  const padSide   = deviceAreaH * 0.06;
-  const padTopBot = deviceAreaH * 0.03;
-  const deviceAspect = targetW / targetH;
-
-  let dfW, dfH;
-  dfH = deviceAreaH - padTopBot * 2;
-  dfW = dfH * deviceAspect;
-  if (dfW > targetW - padSide * 2) {
-    dfW = targetW - padSide * 2;
-    dfH = dfW / deviceAspect;
-  }
-  dfW *= design.devScale;
-  dfH *= design.devScale;
-
-  const cx = targetW / 2;
-  const cy = deviceAreaY + (deviceAreaH / 2);
-
-  // 4-5. Draw frame + screenshot inside a centered (optionally rotated) transform
+  // 3-4. Draw frame + screenshot inside a centered (optionally rotated) transform
   const cfg = STORE_CONFIGS[storeKey];
   ctx.save();
   ctx.translate(cx, cy);
@@ -1283,8 +1391,8 @@ function renderSlot(slot, storeKey, targetW, targetH) {
   }
   ctx.restore();
 
-  // 6. Text overlay
-  drawTextOverlay(ctx, slot, 0, textBandY, targetW, textBandH, targetW, targetH, design);
+  // 5. Text overlay
+  drawTextOverlay(ctx, slot, textArea.x, textArea.y, textArea.w, textArea.h, targetW, targetH, design);
 
   return canvas;
 }
