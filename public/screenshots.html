@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Screenshot Studio — AppIcon Forge</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%234f46e5'/><text y='72' x='50' font-size='62' text-anchor='middle'>📱</text></svg>">
+  <script src="vendor/jszip.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --primary: #6366f1;
+      --primary-dark: #4f46e5;
+      --purple: #7c3aed;
+      --bg: #f1f5f9;
+      --card: #ffffff;
+      --text: #1e293b;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --radius: 14px;
+      --shadow: 0 1px 3px rgba(0,0,0,.07), 0 4px 12px rgba(0,0,0,.05);
+      --sidebar-w: 300px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+      overflow-x: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, var(--primary-dark) 0%, var(--purple) 100%);
+      color: #fff;
+      padding: 28px 24px 24px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+    header::before {
+      content: '';
+      position: absolute;
+      inset: -50%;
+      background: radial-gradient(ellipse at 30% 40%, rgba(255,255,255,.08) 0%, transparent 60%),
+                  radial-gradient(ellipse at 70% 80%, rgba(255,255,255,.05) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .header-back {
+      background: rgba(255,255,255,.18);
+      border: 1px solid rgba(255,255,255,.28);
+      color: #fff;
+      padding: 7px 16px;
+      border-radius: 100px;
+      font-size: .82rem;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background .15s;
+      position: relative;
+      z-index: 1;
+      flex-shrink: 0;
+    }
+    .header-back:hover { background: rgba(255,255,255,.28); }
+    .header-center {
+      flex: 1;
+      text-align: center;
+      position: relative;
+      z-index: 1;
+    }
+    .header-center h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -.5px; }
+    .header-center p  { margin-top: 4px; font-size: .9rem; opacity: .82; }
+    .header-spacer { width: 120px; flex-shrink: 0; }
+
+    /* ── App Layout ── */
+    .app-shell {
+      display: flex;
+      height: calc(100vh - 90px);
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .sidebar-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sidebar-section:last-child { border-bottom: none; }
+    .sidebar-heading {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .7px;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+
+    /* Upload area in sidebar */
+    .upload-zone {
+      border: 2px dashed var(--border);
+      border-radius: 10px;
+      padding: 20px 12px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      position: relative;
+    }
+    .upload-zone:hover, .upload-zone.over {
+      border-color: var(--primary);
+      background: #f5f3ff;
+    }
+    .upload-zone .uz-icon { font-size: 1.8rem; margin-bottom: 6px; display: block; }
+    .upload-zone p { font-size: .78rem; color: var(--muted); line-height: 1.4; }
+    .upload-zone .uz-browse {
+      background: none; border: none; color: var(--primary);
+      font-weight: 600; cursor: pointer; font-size: .78rem; text-decoration: underline;
+    }
+    .upload-zone-preview {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+    .upload-zone-preview img {
+      width: 44px; height: 44px;
+      border-radius: 6px; object-fit: cover;
+      border: 1px solid var(--border); flex-shrink: 0;
+    }
+    .upload-zone-preview .uzp-info { flex: 1; min-width: 0; font-size: .75rem; }
+    .upload-zone-preview .uzp-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .upload-zone-preview .uzp-dims { color: var(--muted); margin-top: 2px; }
+    .btn-icon-sm {
+      background: none; border: 1px solid var(--border);
+      color: var(--muted); width: 26px; height: 26px;
+      border-radius: 6px; cursor: pointer; font-size: .75rem;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: background .15s, color .15s;
+      flex-shrink: 0;
+    }
+    .btn-icon-sm:hover { background: #fee2e2; border-color: #fca5a5; color: var(--danger); }
+
+    /* Preset swatches */
+    .swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .swatch {
+      height: 32px;
+      border-radius: 7px;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: transform .12s, border-color .12s;
+      position: relative;
+    }
+    .swatch:hover { transform: scale(1.08); }
+    .swatch.active { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(99,102,241,.3); }
+
+    /* Form fields */
+    .field-row {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 10px;
+    }
+    .field-row:last-child { margin-bottom: 0; }
+    .field-label {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--muted);
+    }
+    .field-row input[type="text"],
+    .field-row textarea,
+    .field-row select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 7px 10px;
+      font-size: .82rem;
+      font-family: inherit;
+      color: var(--text);
+      background: #fff;
+      transition: border-color .15s;
+      outline: none;
+    }
+    .field-row input[type="text"]:focus,
+    .field-row textarea:focus,
+    .field-row select:focus { border-color: var(--primary); }
+    .field-row textarea { resize: vertical; min-height: 50px; }
+
+    .color-pair {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .color-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      flex: 1;
+    }
+    .color-input-wrap label { font-size: .7rem; color: var(--muted); white-space: nowrap; }
+    input[type="color"] {
+      width: 36px; height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 6px; cursor: pointer;
+      padding: 2px; background: #fff;
+      flex-shrink: 0;
+    }
+
+    .radio-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .radio-pill {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      cursor: pointer;
+      font-size: .75rem;
+      transition: background .12s, border-color .12s;
+      user-select: none;
+    }
+    .radio-pill:has(input:checked) {
+      background: #ede9fe;
+      border-color: var(--primary);
+      color: var(--primary-dark);
+      font-weight: 600;
+    }
+    .radio-pill input[type="radio"] {
+      display: none;
+    }
+
+    /* ── Main content ── */
+    .main-content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* Tab bar */
+    .tab-bar {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 2px;
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      padding: 14px 16px 11px;
+      font-size: .85rem;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    /* Canvas area toolbar */
+    .canvas-toolbar {
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .orient-toggle {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .orient-btn {
+      background: none;
+      border: none;
+      padding: 5px 12px;
+      font-size: .78rem;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background .12s, color .12s;
+    }
+    .orient-btn.active {
+      background: var(--primary);
+      color: #fff;
+    }
+    .dim-badge {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: .73rem;
+      color: var(--muted);
+      font-family: 'SF Mono', 'Fira Code', monospace;
+    }
+    .toolbar-spacer { flex: 1; }
+
+    /* Slots area */
+    .slots-area {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 16px;
+    }
+    .slots-scroll {
+      display: flex;
+      gap: 12px;
+      overflow-x: auto;
+      padding-bottom: 8px;
+      align-items: flex-start;
+    }
+    .slots-scroll::-webkit-scrollbar { height: 5px; }
+    .slots-scroll::-webkit-scrollbar-track { background: var(--bg); border-radius: 10px; }
+    .slots-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+    /* Slot card */
+    .slot-card {
+      flex-shrink: 0;
+      background: var(--card);
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      cursor: pointer;
+      transition: border-color .15s, box-shadow .15s;
+      position: relative;
+    }
+    .slot-card:hover { box-shadow: var(--shadow); }
+    .slot-card.active {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99,102,241,.2);
+    }
+    .slot-canvas-wrap {
+      position: relative;
+      overflow: hidden;
+    }
+    .slot-canvas-wrap canvas {
+      display: block;
+    }
+    .slot-hover-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    .slot-card:hover .slot-hover-overlay { opacity: 1; }
+    .slot-dl-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(255,255,255,.9);
+      border: none;
+      width: 30px; height: 30px;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex; align-items: center; justify-content: center;
+      transition: background .12s;
+      z-index: 2;
+    }
+    .slot-dl-btn:hover { background: #fff; }
+    .slot-footer {
+      padding: 6px 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border);
+      background: #fafbfc;
+    }
+    .slot-num {
+      font-size: .72rem;
+      font-weight: 700;
+      color: var(--muted);
+    }
+    .slot-delete-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: .75rem;
+      padding: 2px 5px;
+      border-radius: 4px;
+      transition: background .12s, color .12s;
+      line-height: 1;
+    }
+    .slot-delete-btn:hover { background: #fee2e2; color: var(--danger); }
+
+    /* Add slot button */
+    .add-slot-btn {
+      flex-shrink: 0;
+      background: var(--card);
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 600;
+      transition: border-color .15s, color .15s, background .15s;
+      padding: 20px;
+    }
+    .add-slot-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: #f5f3ff;
+    }
+    .add-slot-btn .plus-icon { font-size: 1.6rem; line-height: 1; }
+
+    /* Export bar */
+    .export-bar {
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary-dark), var(--purple));
+      color: #fff; border: none; padding: 10px 28px;
+      border-radius: 100px; font-size: .88rem; font-weight: 700;
+      cursor: pointer; transition: opacity .15s, transform .15s;
+      box-shadow: 0 4px 14px rgba(99,102,241,.35);
+      white-space: nowrap;
+    }
+    .btn-primary:hover { opacity: .92; transform: translateY(-1px); }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; transform: none; }
+    .export-hint {
+      font-size: .78rem;
+      color: var(--muted);
+    }
+
+    /* ── Hidden file input ── */
+    .hidden-file { display: none; }
+
+    /* Scrollbar styling for sidebar */
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+    /* Footer */
+    footer {
+      text-align: center; color: var(--muted); font-size: .75rem;
+      padding: 14px; border-top: 1px solid var(--border);
+      background: var(--card);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <a href="index.html" class="header-back">← AppIcon Forge</a>
+  <div class="header-center">
+    <h1>Screenshot Studio</h1>
+    <p>Design App Store &amp; Google Play screenshots — locally, no uploads.</p>
+  </div>
+  <div class="header-spacer"></div>
+</header>
+
+<div class="app-shell">
+
+  <!-- ── Left Sidebar ── -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Upload -->
+    <div class="sidebar-section">
+      <div class="sidebar-heading">App Screenshot</div>
+      <div class="upload-zone" id="uz" role="button" tabindex="0">
+        <span class="uz-icon">🖼️</span>
+        <p><strong>Drag &amp; drop</strong> screenshot<br>or <button class="uz-browse" type="button" id="uz-browse">browse</button></p>
+      </div>
+      <div class="upload-zone-preview" id="uzp">
+        <img id="uzp-img" alt="">
+        <div class="uzp-info">
+          <div class="uzp-name" id="uzp-name"></div>
+          <div class="uzp-dims" id="uzp-dims"></div>
+        </div>
+        <button class="btn-icon-sm" id="uzp-remove" title="Remove screenshot">✕</button>
+      </div>
+      <input type="file" class="hidden-file" id="uz-file" accept="image/*">
+    </div>
+
+    <!-- Background -->
+    <div class="sidebar-section">
+      <div class="sidebar-heading">Background</div>
+      <div class="swatch-grid" id="swatch-grid"></div>
+      <div class="color-pair">
+        <div class="color-input-wrap">
+          <label>Color 1</label>
+          <input type="color" id="bg-color1" value="#667eea">
+        </div>
+        <div class="color-input-wrap">
+          <label>Color 2</label>
+          <input type="color" id="bg-color2" value="#764ba2">
+        </div>
+      </div>
+      <div class="field-row" style="margin-top:10px">
+        <span class="field-label">Type</span>
+        <div class="radio-group">
+          <label class="radio-pill">
+            <input type="radio" name="bg-type" value="gradient" checked> Gradient
+          </label>
+          <label class="radio-pill">
+            <input type="radio" name="bg-type" value="solid"> Solid
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Text -->
+    <div class="sidebar-section">
+      <div class="sidebar-heading">Text Overlay</div>
+      <div class="field-row">
+        <span class="field-label">Headline</span>
+        <input type="text" id="txt-headline" placeholder="Your App, Your Way" maxlength="80">
+      </div>
+      <div class="field-row">
+        <span class="field-label">Caption</span>
+        <input type="text" id="txt-caption" placeholder="Discover a better experience" maxlength="120">
+      </div>
+      <div class="field-row">
+        <span class="field-label">Text Color</span>
+        <input type="color" id="txt-color" value="#ffffff">
+      </div>
+      <div class="field-row">
+        <span class="field-label">Position</span>
+        <div class="radio-group">
+          <label class="radio-pill">
+            <input type="radio" name="txt-pos" value="top"> Top
+          </label>
+          <label class="radio-pill">
+            <input type="radio" name="txt-pos" value="bottom" checked> Bottom
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Frame & Fit -->
+    <div class="sidebar-section">
+      <div class="sidebar-heading">Frame &amp; Fit</div>
+      <div class="field-row">
+        <span class="field-label">Frame Style</span>
+        <select id="frame-style">
+          <option value="device">Device Frame</option>
+          <option value="shadow">Shadow Only</option>
+          <option value="none">None</option>
+        </select>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Screenshot Fit</span>
+        <select id="screenshot-fit">
+          <option value="cover">Cover</option>
+          <option value="contain">Contain</option>
+        </select>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ── Main Content ── -->
+  <div class="main-content">
+
+    <!-- Tab bar -->
+    <div class="tab-bar" id="tab-bar">
+      <button class="tab-btn active" data-tab="apple-iphone">Apple iPhone</button>
+      <button class="tab-btn" data-tab="apple-ipad">Apple iPad</button>
+      <button class="tab-btn" data-tab="google-phone">Android Phone</button>
+      <button class="tab-btn" data-tab="google-tablet">Android Tablet</button>
+    </div>
+
+    <!-- Canvas toolbar -->
+    <div class="canvas-toolbar">
+      <div class="orient-toggle">
+        <button class="orient-btn active" data-orient="portrait">Portrait</button>
+        <button class="orient-btn" data-orient="landscape">Landscape</button>
+      </div>
+      <span class="dim-badge" id="dim-badge">1290 × 2796</span>
+      <div class="toolbar-spacer"></div>
+    </div>
+
+    <!-- Slots area -->
+    <div class="slots-area">
+      <div class="slots-scroll" id="slots-scroll">
+        <!-- slot cards injected here -->
+      </div>
+    </div>
+
+    <!-- Export bar -->
+    <div class="export-bar">
+      <button class="btn-primary" id="btn-export">Download ZIP</button>
+      <span class="export-hint" id="export-hint">Export all screenshots at full store resolution</span>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  Screenshot Studio &nbsp;·&nbsp; All processing is done locally in your browser. No images are uploaded.
+</footer>
+
+<script>
+// ─────────────────────────────────────────────
+//  CONSTANTS
+// ─────────────────────────────────────────────
+
+const BG_PRESETS = [
+  { label:'Ocean',  type:'gradient', c1:'#667eea', c2:'#764ba2' },
+  { label:'Sky',    type:'gradient', c1:'#4facfe', c2:'#00f2fe' },
+  { label:'Sunset', type:'gradient', c1:'#f093fb', c2:'#f5576c' },
+  { label:'Forest', type:'gradient', c1:'#43e97b', c2:'#38f9d7' },
+  { label:'Night',  type:'gradient', c1:'#0f2027', c2:'#2c5364' },
+  { label:'Warm',   type:'gradient', c1:'#fc4a1a', c2:'#f7b733' },
+  { label:'White',  type:'solid',    c1:'#ffffff', c2:'#ffffff' },
+  { label:'Black',  type:'solid',    c1:'#111111', c2:'#111111' },
+];
+
+const STORE_CONFIGS = {
+  'apple-iphone':  { label:'Apple iPhone',  frame:'iphone',         portrait:{w:1290,h:2796}, landscape:{w:2796,h:1290} },
+  'apple-ipad':    { label:'Apple iPad',    frame:'ipad',           portrait:{w:2048,h:2732}, landscape:{w:2732,h:2048} },
+  'google-phone':  { label:'Google Phone',  frame:'android',        portrait:{w:1080,h:1920}, landscape:{w:1920,h:1080} },
+  'google-tablet': { label:'Google Tablet', frame:'android-tablet', portrait:{w:1080,h:1920}, landscape:{w:1920,h:1080} },
+};
+
+const ZIP_PATHS = {
+  'apple-iphone':  'AppScreenshots/Apple/iPhone/',
+  'apple-ipad':    'AppScreenshots/Apple/iPad/',
+  'google-phone':  'AppScreenshots/GooglePlay/Phone/',
+  'google-tablet': 'AppScreenshots/GooglePlay/Tablet/',
+};
+
+const PORTRAIT_PREVIEW_H  = 340;
+const LANDSCAPE_PREVIEW_H = 200;
+const MAX_SLOTS = 8;
+
+// ─────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────
+
+function defaultSlot() {
+  return {
+    screenshot: null,
+    bgPreset: 0,
+    bgType: 'gradient',
+    bgColor: '#667eea',
+    bgColor2: '#764ba2',
+    headline: 'Your App, Your Way',
+    headlineColor: '#ffffff',
+    caption: 'Discover a better experience',
+    textPosition: 'bottom',
+    frameStyle: 'device',
+    screenshotFit: 'cover',
+  };
+}
+
+const state = {
+  activeTab: 'apple-iphone',
+  tabs: {
+    'apple-iphone':  { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
+    'apple-ipad':    { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
+    'google-phone':  { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
+    'google-tablet': { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
+  },
+};
+
+function currentTab()  { return state.tabs[state.activeTab]; }
+function currentSlot() { const t = currentTab(); return t.slots[t.activeSlot]; }
+function storeConfig() { return STORE_CONFIGS[state.activeTab]; }
+
+// ─────────────────────────────────────────────
+//  CANVAS RENDERING
+// ─────────────────────────────────────────────
+
+function drawBackground(ctx, w, h, slot) {
+  if (slot.bgType === 'solid') {
+    ctx.fillStyle = slot.bgColor;
+    ctx.fillRect(0, 0, w, h);
+  } else {
+    const grd = ctx.createLinearGradient(0, 0, w * Math.cos(Math.PI * 135/180) + w/2, w * Math.sin(Math.PI * 135/180) + h/2);
+    // simpler: diagonal top-left to bottom-right
+    const grad = ctx.createLinearGradient(0, 0, w, h);
+    grad.addColorStop(0, slot.bgColor);
+    grad.addColorStop(1, slot.bgColor2);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  }
+}
+
+function roundRectPath(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h);
+  ctx.arcTo(x, y + h, x, y + h - r, r);
+  ctx.lineTo(x, y + r);
+  ctx.arcTo(x, y, x + r, y, r);
+  ctx.closePath();
+}
+
+function drawDeviceFrame(ctx, fx, fy, fw, fh, frameType) {
+  const r = fw * 0.09; // corner radius for device body
+
+  // Drop shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.45)';
+  ctx.shadowBlur = fw * 0.06;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = fw * 0.03;
+
+  // Device body gradient
+  const bodyGrad = ctx.createLinearGradient(fx, fy, fx + fw, fy + fh);
+  bodyGrad.addColorStop(0, '#2d2d2d');
+  bodyGrad.addColorStop(0.5, '#1a1a1a');
+  bodyGrad.addColorStop(1, '#111111');
+  roundRectPath(ctx, fx, fy, fw, fh, r);
+  ctx.fillStyle = bodyGrad;
+  ctx.fill();
+  ctx.restore();
+
+  // Highlight border
+  ctx.save();
+  roundRectPath(ctx, fx, fy, fw, fh, r);
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = fw * 0.006;
+  ctx.stroke();
+  ctx.restore();
+
+  // Bezel insets
+  const bezelTop    = fh * 0.025;
+  const bezelSide   = fw * 0.018;
+  const bezelBottom = fh * 0.018;
+
+  const sx = fx + bezelSide;
+  const sy = fy + bezelTop;
+  const sw = fw - bezelSide * 2;
+  const sh = fh - bezelTop - bezelBottom;
+  const sr = r * 0.65;
+
+  // Screen fill
+  ctx.save();
+  roundRectPath(ctx, sx, sy, sw, sh, sr);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fill();
+  ctx.restore();
+
+  // ── Frame-specific sensors ──
+  if (frameType === 'iphone') {
+    // Dynamic island pill
+    const diW = sw * 0.28;
+    const diH = fh * 0.022;
+    const diX = sx + (sw - diW) / 2;
+    const diY = sy + fh * 0.012;
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(diX, diY, diW, diH, diH / 2);
+    ctx.fillStyle = '#000000';
+    ctx.fill();
+    ctx.restore();
+
+    // Side buttons (right side: power)
+    const btnW = fw * 0.012;
+    const btnR  = fw * 0.006;
+    ctx.save();
+    ctx.fillStyle = '#2a2a2a';
+    // Power button right
+    const pbH = fh * 0.11;
+    const pbY = fy + fh * 0.28;
+    roundRectPath(ctx, fx + fw, pbY, btnW, pbH, btnR);
+    ctx.fill();
+    // Volume up left
+    const vuH = fh * 0.07;
+    const vuY = fy + fh * 0.25;
+    roundRectPath(ctx, fx - btnW, vuY, btnW, vuH, btnR);
+    ctx.fill();
+    // Volume down left
+    const vdH = fh * 0.07;
+    const vdY = fy + fh * 0.35;
+    roundRectPath(ctx, fx - btnW, vdY, btnW, vdH, btnR);
+    ctx.fill();
+    // Mute switch
+    const msH = fh * 0.04;
+    const msY = fy + fh * 0.17;
+    roundRectPath(ctx, fx - btnW, msY, btnW, msH, btnR);
+    ctx.fill();
+    ctx.restore();
+
+  } else if (frameType === 'ipad') {
+    // Camera dot top center
+    const camR = sw * 0.012;
+    const camX = sx + sw / 2;
+    const camY = sy + (bezelTop * 0.5);
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(camX, camY, camR, 0, Math.PI * 2);
+    ctx.fillStyle = '#333';
+    ctx.fill();
+    // Camera lens reflection
+    ctx.beginPath();
+    ctx.arc(camX - camR*0.2, camY - camR*0.2, camR*0.35, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fill();
+    ctx.restore();
+
+  } else if (frameType === 'android' || frameType === 'android-tablet') {
+    // Punch-hole circle camera top center of screen
+    const phR = sw * 0.018;
+    const phX = sx + sw / 2;
+    const phY = sy + sh * 0.025;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(phX, phY, phR, 0, Math.PI * 2);
+    ctx.fillStyle = '#000';
+    ctx.fill();
+    // Subtle ring
+    ctx.beginPath();
+    ctx.arc(phX, phY, phR * 1.35, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.lineWidth = fw * 0.003;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  return { x: sx, y: sy, w: sw, h: sh, r: sr };
+}
+
+function drawFittedImage(ctx, img, rx, ry, rw, rh, fit) {
+  const imgAspect = img.naturalWidth / img.naturalHeight;
+  const boxAspect = rw / rh;
+  let dx, dy, dw, dh;
+
+  if (fit === 'cover') {
+    if (imgAspect > boxAspect) {
+      dh = rh;
+      dw = dh * imgAspect;
+    } else {
+      dw = rw;
+      dh = dw / imgAspect;
+    }
+    dx = rx + (rw - dw) / 2;
+    dy = ry + (rh - dh) / 2;
+  } else {
+    // contain
+    if (imgAspect > boxAspect) {
+      dw = rw;
+      dh = dw / imgAspect;
+    } else {
+      dh = rh;
+      dw = dh * imgAspect;
+    }
+    dx = rx + (rw - dw) / 2;
+    dy = ry + (rh - dh) / 2;
+  }
+
+  ctx.drawImage(img, dx, dy, dw, dh);
+}
+
+function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH) {
+  const headlineSize = canvasH * 0.048;
+  const captionSize  = canvasH * 0.026;
+  const maxW = canvasW * 0.88;
+  const cx = tbX + tbW / 2;
+
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Headline
+  ctx.save();
+  ctx.font = `700 ${headlineSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+  ctx.fillStyle = slot.headlineColor;
+  ctx.shadowColor = 'rgba(0,0,0,0.3)';
+  ctx.shadowBlur = headlineSize * 0.3;
+  ctx.shadowOffsetY = headlineSize * 0.05;
+  const hlY = tbY + tbH * 0.38;
+  ctx.fillText(slot.headline || '', cx, hlY, maxW);
+  ctx.restore();
+
+  // Caption
+  if (slot.caption) {
+    ctx.save();
+    ctx.font = `400 ${captionSize}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
+    ctx.fillStyle = slot.headlineColor;
+    ctx.globalAlpha = 0.82;
+    ctx.shadowColor = 'rgba(0,0,0,0.2)';
+    ctx.shadowBlur = captionSize * 0.3;
+    const capY = tbY + tbH * 0.65;
+    ctx.fillText(slot.caption, cx, capY, maxW);
+    ctx.restore();
+  }
+}
+
+function renderSlot(slot, storeKey, targetW, targetH) {
+  const canvas = document.createElement('canvas');
+  canvas.width  = targetW;
+  canvas.height = targetH;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  // 1. Background
+  drawBackground(ctx, targetW, targetH, slot);
+
+  // 2. Layout
+  const textBandH = targetH * 0.18;
+  const deviceAreaH = targetH - textBandH;
+
+  let textBandY, deviceAreaY;
+  if (slot.textPosition === 'bottom') {
+    deviceAreaY  = 0;
+    textBandY    = deviceAreaH;
+  } else {
+    textBandY    = 0;
+    deviceAreaY  = textBandH;
+  }
+
+  // 3. Device frame rect
+  const padSide   = deviceAreaH * 0.05;
+  const padTopBot = deviceAreaH * 0.02;
+  const deviceAspect = targetW / targetH;
+
+  let dfW, dfH;
+  dfH = deviceAreaH - padTopBot * 2;
+  dfW = dfH * deviceAspect;
+  if (dfW > targetW - padSide * 2) {
+    dfW = targetW - padSide * 2;
+    dfH = dfW / deviceAspect;
+  }
+
+  const dfX = (targetW - dfW) / 2;
+  const dfY = deviceAreaY + padTopBot;
+
+  let screenRect = { x: dfX, y: dfY, w: dfW, h: dfH, r: 0 };
+
+  // 4. Draw frame
+  const cfg = STORE_CONFIGS[storeKey];
+  if (slot.frameStyle === 'device') {
+    screenRect = drawDeviceFrame(ctx, dfX, dfY, dfW, dfH, cfg.frame);
+  } else if (slot.frameStyle === 'shadow') {
+    // shadow-only: just a shadow box
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur  = dfW * 0.06;
+    ctx.shadowOffsetY = dfW * 0.02;
+    const sr2 = dfW * 0.04;
+    roundRectPath(ctx, dfX, dfY, dfW, dfH, sr2);
+    ctx.fillStyle = 'rgba(0,0,0,0.01)';
+    ctx.fill();
+    ctx.restore();
+    screenRect = { x: dfX, y: dfY, w: dfW, h: dfH, r: sr2 };
+  } else {
+    // none - use full device area
+    screenRect = { x: dfX, y: dfY, w: dfW, h: dfH, r: 0 };
+  }
+
+  // 5. Draw screenshot in screen rect
+  if (slot.screenshot) {
+    ctx.save();
+    roundRectPath(ctx, screenRect.x, screenRect.y, screenRect.w, screenRect.h, screenRect.r);
+    ctx.clip();
+    drawFittedImage(ctx, slot.screenshot, screenRect.x, screenRect.y, screenRect.w, screenRect.h, slot.screenshotFit);
+    ctx.restore();
+  }
+
+  // 6. Text overlay
+  drawTextOverlay(ctx, slot, 0, textBandY, targetW, textBandH, targetW, targetH);
+
+  return canvas;
+}
+
+function renderSlotPreview(slot, storeKey, orientation) {
+  const cfg  = STORE_CONFIGS[storeKey];
+  const dims = cfg[orientation];
+  const isLandscape = orientation === 'landscape';
+  const previewH = isLandscape ? LANDSCAPE_PREVIEW_H : PORTRAIT_PREVIEW_H;
+  const scale = previewH / dims.h;
+  const previewW = Math.round(dims.w * scale);
+
+  return renderSlot(slot, storeKey, previewW, previewH);
+}
+
+// ─────────────────────────────────────────────
+//  UI RENDERING
+// ─────────────────────────────────────────────
+
+function buildSwatches() {
+  const grid = document.getElementById('swatch-grid');
+  grid.innerHTML = '';
+  BG_PRESETS.forEach((preset, i) => {
+    const sw = document.createElement('div');
+    sw.className = 'swatch' + (currentSlot().bgPreset === i ? ' active' : '');
+    sw.title = preset.label;
+    sw.dataset.index = i;
+    if (preset.type === 'gradient') {
+      sw.style.background = `linear-gradient(135deg, ${preset.c1}, ${preset.c2})`;
+    } else {
+      sw.style.background = preset.c1;
+      sw.style.border = '2px solid #e2e8f0';
+    }
+    sw.addEventListener('click', () => applyPreset(i));
+    grid.appendChild(sw);
+  });
+}
+
+function applyPreset(i) {
+  const slot = currentSlot();
+  const preset = BG_PRESETS[i];
+  slot.bgPreset  = i;
+  slot.bgType    = preset.type;
+  slot.bgColor   = preset.c1;
+  slot.bgColor2  = preset.c2;
+  syncSidebarFromSlot();
+  refreshActiveSlot();
+}
+
+function syncSidebarFromSlot() {
+  const slot = currentSlot();
+  document.getElementById('bg-color1').value   = slot.bgColor;
+  document.getElementById('bg-color2').value   = slot.bgColor2;
+  document.querySelectorAll('input[name="bg-type"]').forEach(r => { r.checked = r.value === slot.bgType; });
+  document.getElementById('txt-headline').value = slot.headline;
+  document.getElementById('txt-caption').value  = slot.caption;
+  document.getElementById('txt-color').value    = slot.headlineColor;
+  document.querySelectorAll('input[name="txt-pos"]').forEach(r => { r.checked = r.value === slot.textPosition; });
+  document.getElementById('frame-style').value  = slot.frameStyle;
+  document.getElementById('screenshot-fit').value = slot.screenshotFit;
+
+  // Upload preview
+  if (slot.screenshot) {
+    document.getElementById('uz').style.display = 'none';
+    const uzp = document.getElementById('uzp');
+    uzp.style.display = 'flex';
+    document.getElementById('uzp-img').src = slot.screenshot.src;
+    document.getElementById('uzp-name').textContent = slot._screenshotName || 'screenshot.png';
+    document.getElementById('uzp-dims').textContent = `${slot.screenshot.naturalWidth}×${slot.screenshot.naturalHeight}`;
+  } else {
+    document.getElementById('uz').style.display = '';
+    document.getElementById('uzp').style.display = 'none';
+  }
+
+  buildSwatches();
+  updateDimBadge();
+}
+
+function updateDimBadge() {
+  const cfg   = storeConfig();
+  const tab   = currentTab();
+  const dims  = cfg[tab.orientation];
+  document.getElementById('dim-badge').textContent = `${dims.w} × ${dims.h}`;
+}
+
+function renderSlotsUI() {
+  const container = document.getElementById('slots-scroll');
+  container.innerHTML = '';
+  const tab  = currentTab();
+  const cfg  = storeConfig();
+
+  tab.slots.forEach((slot, idx) => {
+    const isActive = idx === tab.activeSlot;
+    const card = document.createElement('div');
+    card.className = 'slot-card' + (isActive ? ' active' : '');
+    card.dataset.idx = idx;
+
+    // Canvas wrap
+    const wrap = document.createElement('div');
+    wrap.className = 'slot-canvas-wrap';
+    const previewCanvas = renderSlotPreview(slot, state.activeTab, tab.orientation);
+    wrap.appendChild(previewCanvas);
+
+    // Hover overlay (just the download button)
+    const overlay = document.createElement('div');
+    overlay.className = 'slot-hover-overlay';
+    const dlBtn = document.createElement('button');
+    dlBtn.className = 'slot-dl-btn';
+    dlBtn.title = 'Download this screenshot';
+    dlBtn.textContent = '↓';
+    dlBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      downloadSlot(idx);
+    });
+    overlay.appendChild(dlBtn);
+    wrap.appendChild(overlay);
+
+    // Drag & drop onto slot card
+    card.addEventListener('dragover', e => { e.preventDefault(); card.style.borderColor = 'var(--primary)'; });
+    card.addEventListener('dragleave', () => { card.style.borderColor = ''; });
+    card.addEventListener('drop', e => {
+      e.preventDefault();
+      card.style.borderColor = '';
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        loadScreenshotIntoSlot(file, idx);
+      }
+    });
+
+    // Click → select
+    card.addEventListener('click', () => {
+      tab.activeSlot = idx;
+      syncSidebarFromSlot();
+      renderSlotsUI();
+    });
+
+    // Footer
+    const footer = document.createElement('div');
+    footer.className = 'slot-footer';
+    const num = document.createElement('span');
+    num.className = 'slot-num';
+    num.textContent = `#${idx + 1}`;
+    footer.appendChild(num);
+
+    if (tab.slots.length > 1) {
+      const delBtn = document.createElement('button');
+      delBtn.className = 'slot-delete-btn';
+      delBtn.textContent = '✕';
+      delBtn.title = 'Remove slot';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        tab.slots.splice(idx, 1);
+        if (tab.activeSlot >= tab.slots.length) tab.activeSlot = tab.slots.length - 1;
+        syncSidebarFromSlot();
+        renderSlotsUI();
+      });
+      footer.appendChild(delBtn);
+    }
+
+    card.appendChild(wrap);
+    card.appendChild(footer);
+    container.appendChild(card);
+  });
+
+  // Add slot button
+  if (tab.slots.length < MAX_SLOTS) {
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-slot-btn';
+    const isLandscape = tab.orientation === 'landscape';
+    addBtn.style.height = (isLandscape ? LANDSCAPE_PREVIEW_H : PORTRAIT_PREVIEW_H) + 38 + 'px';
+    addBtn.style.width  = '80px';
+    addBtn.innerHTML = '<span class="plus-icon">+</span><span>Add slot</span>';
+    addBtn.addEventListener('click', () => {
+      tab.slots.push(defaultSlot());
+      tab.activeSlot = tab.slots.length - 1;
+      syncSidebarFromSlot();
+      renderSlotsUI();
+      // Scroll to end
+      setTimeout(() => {
+        const sc = document.getElementById('slots-scroll');
+        sc.scrollLeft = sc.scrollWidth;
+      }, 50);
+    });
+    container.appendChild(addBtn);
+  }
+}
+
+function refreshActiveSlot() {
+  renderSlotsUI();
+}
+
+// ─────────────────────────────────────────────
+//  UPLOAD HANDLING
+// ─────────────────────────────────────────────
+
+function loadScreenshotIntoSlot(file, slotIdx) {
+  const tab = currentTab();
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    tab.slots[slotIdx].screenshot = img;
+    tab.slots[slotIdx]._screenshotName = file.name;
+    if (tab.activeSlot === slotIdx) syncSidebarFromSlot();
+    renderSlotsUI();
+  };
+  img.onerror = () => alert('Could not load image.');
+  img.src = url;
+}
+
+// Sidebar upload zone
+const uzEl      = document.getElementById('uz');
+const uzFile    = document.getElementById('uz-file');
+const uzBrowse  = document.getElementById('uz-browse');
+const uzpEl     = document.getElementById('uzp');
+const uzpRemove = document.getElementById('uzp-remove');
+
+uzBrowse.addEventListener('click', () => uzFile.click());
+uzEl.addEventListener('click', (e) => { if (e.target !== uzBrowse) uzFile.click(); });
+uzEl.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') uzFile.click(); });
+
+uzEl.addEventListener('dragover', e => { e.preventDefault(); uzEl.classList.add('over'); });
+uzEl.addEventListener('dragleave', () => uzEl.classList.remove('over'));
+uzEl.addEventListener('drop', e => {
+  e.preventDefault();
+  uzEl.classList.remove('over');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadScreenshotIntoSlot(file, currentTab().activeSlot);
+});
+
+uzFile.addEventListener('change', () => {
+  if (uzFile.files[0]) {
+    loadScreenshotIntoSlot(uzFile.files[0], currentTab().activeSlot);
+    uzFile.value = '';
+  }
+});
+
+uzpRemove.addEventListener('click', () => {
+  const slot = currentSlot();
+  slot.screenshot = null;
+  slot._screenshotName = null;
+  syncSidebarFromSlot();
+  renderSlotsUI();
+});
+
+// ─────────────────────────────────────────────
+//  SIDEBAR CONTROLS
+// ─────────────────────────────────────────────
+
+function onSlotChange() {
+  const slot = currentSlot();
+  slot.bgColor   = document.getElementById('bg-color1').value;
+  slot.bgColor2  = document.getElementById('bg-color2').value;
+  slot.bgType    = document.querySelector('input[name="bg-type"]:checked').value;
+  slot.headline  = document.getElementById('txt-headline').value;
+  slot.caption   = document.getElementById('txt-caption').value;
+  slot.headlineColor = document.getElementById('txt-color').value;
+  slot.textPosition  = document.querySelector('input[name="txt-pos"]:checked').value;
+  slot.frameStyle    = document.getElementById('frame-style').value;
+  slot.screenshotFit = document.getElementById('screenshot-fit').value;
+  // Reset preset selection if color changed
+  slot.bgPreset = -1;
+  buildSwatches();
+  refreshActiveSlot();
+}
+
+['bg-color1','bg-color2','txt-color'].forEach(id => {
+  document.getElementById(id).addEventListener('input', onSlotChange);
+});
+document.querySelectorAll('input[name="bg-type"], input[name="txt-pos"]').forEach(r => {
+  r.addEventListener('change', onSlotChange);
+});
+['txt-headline','txt-caption'].forEach(id => {
+  document.getElementById(id).addEventListener('input', onSlotChange);
+});
+['frame-style','screenshot-fit'].forEach(id => {
+  document.getElementById(id).addEventListener('change', onSlotChange);
+});
+
+// ─────────────────────────────────────────────
+//  TABS & ORIENTATION
+// ─────────────────────────────────────────────
+
+document.getElementById('tab-bar').addEventListener('click', e => {
+  const btn = e.target.closest('.tab-btn');
+  if (!btn) return;
+  state.activeTab = btn.dataset.tab;
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+  updateOrientBtns();
+  syncSidebarFromSlot();
+  renderSlotsUI();
+});
+
+document.querySelector('.canvas-toolbar').addEventListener('click', e => {
+  const btn = e.target.closest('.orient-btn');
+  if (!btn) return;
+  currentTab().orientation = btn.dataset.orient;
+  updateOrientBtns();
+  updateDimBadge();
+  renderSlotsUI();
+});
+
+function updateOrientBtns() {
+  const orient = currentTab().orientation;
+  document.querySelectorAll('.orient-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.orient === orient);
+  });
+  updateDimBadge();
+}
+
+// ─────────────────────────────────────────────
+//  DOWNLOAD SINGLE SLOT
+// ─────────────────────────────────────────────
+
+function downloadSlot(idx) {
+  const tab = currentTab();
+  const slot = tab.slots[idx];
+  const cfg  = storeConfig();
+  const dims = cfg[tab.orientation];
+  const canvas = renderSlot(slot, state.activeTab, dims.w, dims.h);
+  canvas.toBlob(blob => {
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href = url;
+    a.download = `screenshot-${String(idx+1).padStart(2,'0')}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }, 'image/png');
+}
+
+// ─────────────────────────────────────────────
+//  ZIP EXPORT
+// ─────────────────────────────────────────────
+
+document.getElementById('btn-export').addEventListener('click', async () => {
+  if (typeof JSZip === 'undefined') {
+    alert('JSZip library not loaded. Please refresh and try again.');
+    return;
+  }
+
+  const btn = document.getElementById('btn-export');
+  btn.disabled = true;
+  btn.textContent = 'Preparing…';
+  document.getElementById('export-hint').textContent = 'Rendering screenshots at full resolution…';
+
+  try {
+    const zip = new JSZip();
+    let total = 0;
+
+    for (const [tabKey, tabData] of Object.entries(state.tabs)) {
+      const cfg = STORE_CONFIGS[tabKey];
+      for (const orient of ['portrait', 'landscape']) {
+        const dims = cfg[orient];
+        const orientLabel = orient === 'portrait' ? 'Portrait' : 'Landscape';
+        const basePath = ZIP_PATHS[tabKey] + orientLabel + '/';
+        let slotNum = 1;
+        for (const slot of tabData.slots) {
+          if (!slot.screenshot) continue;
+          const canvas = renderSlot(slot, tabKey, dims.w, dims.h);
+          const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+          zip.file(basePath + `screenshot-${String(slotNum).padStart(2,'0')}.png`, blob);
+          slotNum++;
+          total++;
+          // yield
+          await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+        }
+      }
+    }
+
+    if (total === 0) {
+      alert('No slots have screenshots uploaded yet. Upload at least one screenshot first.');
+      return;
+    }
+
+    document.getElementById('export-hint').textContent = `Packaging ${total} screenshot(s)…`;
+    const zipBlob = await zip.generateAsync({ type:'blob', compression:'DEFLATE', compressionOptions:{level:6} });
+    const url = URL.createObjectURL(zipBlob);
+    const a   = document.createElement('a');
+    a.href = url;
+    a.download = 'AppScreenshots.zip';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    document.getElementById('export-hint').textContent = `Exported ${total} screenshot(s) successfully.`;
+  } catch(e) {
+    alert('Export failed: ' + e.message);
+    document.getElementById('export-hint').textContent = 'Export failed.';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Download ZIP';
+  }
+});
+
+// ─────────────────────────────────────────────
+//  INIT
+// ─────────────────────────────────────────────
+
+buildSwatches();
+updateOrientBtns();
+syncSidebarFromSlot();
+renderSlotsUI();
+</script>
+</body>
+</html>
