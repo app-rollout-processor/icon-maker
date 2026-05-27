@@ -490,6 +490,12 @@
       line-height: 1;
     }
     .slot-delete-btn:hover { background: #fee2e2; color: var(--danger); }
+    .slot-clone-btn {
+      background: none; border: none; color: var(--muted);
+      cursor: pointer; font-size: .75rem; padding: 2px 5px;
+      border-radius: 4px; transition: background .12s, color .12s; line-height: 1;
+    }
+    .slot-clone-btn:hover { background: #eff6ff; color: var(--primary); }
 
     /* Add slot button */
     .add-slot-btn {
@@ -1516,6 +1522,34 @@ function renderSlotsUI() {
     num.textContent = `#${idx + 1}`;
     footer.appendChild(num);
 
+    // Right-side action buttons
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:2px;align-items:center;';
+
+    if (tab.slots.length < MAX_SLOTS) {
+      const cloneBtn = document.createElement('button');
+      cloneBtn.className = 'slot-clone-btn';
+      cloneBtn.textContent = '⎘';
+      cloneBtn.title = 'Duplicate slot';
+      cloneBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const copy = JSON.parse(JSON.stringify(
+          (() => { const { screenshot, ...rest } = tab.slots[idx]; return rest; })()
+        ));
+        copy.screenshot = tab.slots[idx].screenshot;  // re-attach image ref
+        tab.slots.splice(idx + 1, 0, copy);
+        tab.activeSlot = idx + 1;
+        syncSidebarFromSlot();
+        renderSlotsUI();
+        setTimeout(() => {
+          const sc = document.getElementById('slots-scroll');
+          const cards = sc.querySelectorAll('.slot-card');
+          if (cards[idx + 1]) cards[idx + 1].scrollIntoView({ inline: 'nearest', behavior: 'smooth' });
+        }, 50);
+      });
+      actions.appendChild(cloneBtn);
+    }
+
     if (tab.slots.length > 1) {
       const delBtn = document.createElement('button');
       delBtn.className = 'slot-delete-btn';
@@ -1528,8 +1562,10 @@ function renderSlotsUI() {
         syncSidebarFromSlot();
         renderSlotsUI();
       });
-      footer.appendChild(delBtn);
+      actions.appendChild(delBtn);
     }
+
+    footer.appendChild(actions);
 
     card.appendChild(wrap);
     card.appendChild(footer);
