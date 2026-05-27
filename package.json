@@ -1,0 +1,11 @@
+{
+  "name": "appicon-forge",
+  "version": "1.0.0",
+  "description": "Generate iOS & Android app icons and splash screens from a single image, entirely in the browser.",
+  "private": true,
+  "scripts": {
+    "start": "cd public && python3 -m http.server 8080",
+    "deploy": "firebase deploy --only hosting"
+  },
+  "comment": "JSZip is vendored at public/vendor/jszip.min.js so the app has no runtime CDN dependency. To refresh it: npm i jszip@3 && cp node_modules/jszip/dist/jszip.min.js public/vendor/"
+}
