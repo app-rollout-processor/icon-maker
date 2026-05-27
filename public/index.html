@@ -954,7 +954,10 @@ function renderIconBlock(title, items) {
     const chip = document.createElement('div');
     chip.className = 'icon-chip';
     chip.appendChild(item.thumb);
-    chip.innerHTML += `<div class="chip-label">${item.label}<br>${item.sub}</div>`;
+    const lbl = document.createElement('div');
+    lbl.className = 'chip-label';
+    lbl.innerHTML = `${item.label}<br>${item.sub}`;
+    chip.appendChild(lbl);
     row.appendChild(chip);
   });
   block.appendChild(row);
@@ -971,7 +974,10 @@ function renderSplashBlock(title, items) {
     const chip = document.createElement('div');
     chip.className = 'splash-chip';
     chip.appendChild(item.thumb);
-    chip.innerHTML += `<div class="chip-label">${item.label}<br>${item.sub}</div>`;
+    const lbl = document.createElement('div');
+    lbl.className = 'chip-label';
+    lbl.innerHTML = `${item.label}<br>${item.sub}`;
+    chip.appendChild(lbl);
     row.appendChild(chip);
   });
   block.appendChild(row);
