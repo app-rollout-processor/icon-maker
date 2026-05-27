@@ -78,6 +78,24 @@
     .header-center h1 { font-size: 1.8rem; font-weight: 800; letter-spacing: -.5px; }
     .header-center p  { margin-top: 4px; font-size: .9rem; opacity: .82; }
     .header-spacer { width: 120px; flex-shrink: 0; }
+    .header-projects {
+      display: flex; align-items: center; gap: 6px;
+      position: relative; z-index: 1; flex-shrink: 0;
+    }
+    .proj-select {
+      background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.28);
+      color: #fff; padding: 7px 10px; border-radius: 100px;
+      font-size: .82rem; font-weight: 600; max-width: 150px; cursor: pointer;
+      appearance: none; -webkit-appearance: none;
+    }
+    .proj-select option { color: #1e293b; }
+    .proj-btn {
+      background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.28);
+      color: #fff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer;
+      font-size: .85rem; line-height: 1; display: inline-flex;
+      align-items: center; justify-content: center; flex-shrink: 0; padding: 0;
+    }
+    .proj-btn:hover { background: rgba(255,255,255,.3); }
 
     /* ── App Layout ── */
     .app-shell {
@@ -557,7 +575,12 @@
     <h1>Screenshot Studio</h1>
     <p>Design App Store &amp; Google Play screenshots — locally, no uploads.</p>
   </div>
-  <div class="header-spacer"></div>
+  <div class="header-projects">
+    <select id="project-select" class="proj-select" title="Switch project"></select>
+    <button class="proj-btn" id="proj-new" title="New project">+</button>
+    <button class="proj-btn" id="proj-rename" title="Rename project">✎</button>
+    <button class="proj-btn" id="proj-delete" title="Delete project">🗑</button>
+  </div>
 </header>
 
 <div class="app-shell">
@@ -1742,21 +1765,38 @@ document.getElementById('btn-export').addEventListener('click', async () => {
 // ─────────────────────────────────────────────
 
 const DB_NAME    = 'screenshot-studio-v1';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 let   db         = null;
 let   initialized = false;
 let   saveTimer   = null;
 let   fadeBadgeTimer = null;
+
+let   currentProjectId = null;
+let   projectsList = [];   // [{ id, name, createdAt, updatedAt }]
+
+function newProjectId() {
+  return 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
 
 function openDB() {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = e => {
       const d = e.target.result;
-      if (!d.objectStoreNames.contains('library')) d.createObjectStore('library', { keyPath: 'id' });
-      if (!d.objectStoreNames.contains('meta'))    d.createObjectStore('meta',    { keyPath: 'key' });
+      if (!d.objectStoreNames.contains('library'))  d.createObjectStore('library',  { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('meta'))     d.createObjectStore('meta',     { keyPath: 'key' });
+      if (!d.objectStoreNames.contains('projects')) d.createObjectStore('projects', { keyPath: 'id' });
     };
     req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+function dbDelete(store, key) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).delete(key);
+    req.onsuccess = () => resolve();
     req.onerror   = () => reject(req.error);
   });
 }
@@ -1788,15 +1828,6 @@ function dbGet(store, key) {
   });
 }
 
-function dbClear(store) {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(store, 'readwrite');
-    const req = tx.objectStore(store).clear();
-    req.onsuccess = () => resolve();
-    req.onerror   = () => reject(req.error);
-  });
-}
-
 // Convert an HTMLImageElement to a JPEG data URL (lossy but compact)
 function imgToDataUrl(img) {
   const c = document.createElement('canvas');
@@ -1821,35 +1852,87 @@ function setSaveBadge(state) {
   }
 }
 
-async function saveState() {
-  if (!db) return;
+// Serialise current workspace into a plain object (no Image refs)
+function buildProjectData() {
+  const tabData = {};
+  for (const [tabKey, tab] of Object.entries(state.tabs)) {
+    tabData[tabKey] = {
+      orientation: tab.orientation,
+      activeSlot: tab.activeSlot,
+      slots: tab.slots.map(slot => {
+        const { screenshot, ...rest } = slot;
+        return rest;  // _libId kept, img reference dropped
+      }),
+    };
+  }
+  return { activeTab: state.activeTab, libSeqNext: libSeq + 1, tabs: tabData };
+}
+
+// Reset the in-memory workspace to an empty project
+function freshTabs() {
+  return {
+    'apple-iphone':  { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
+    'apple-ipad':    { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
+    'google-phone':  { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
+    'google-tablet': { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
+  };
+}
+function resetWorkspace() {
+  state.library = [];
+  state.activeTab = 'apple-iphone';
+  state.tabs = freshTabs();
+  libSeq = 0;
+}
+
+// Apply serialised data onto the (already reset) workspace, reattaching images
+function applyProjectData(data) {
+  libSeq = (data.libSeqNext || 1) - 1;
+  if (data.activeTab && state.tabs[data.activeTab]) state.activeTab = data.activeTab;
+  for (const [tabKey, saved] of Object.entries(data.tabs || {})) {
+    if (!state.tabs[tabKey]) continue;
+    const tab = state.tabs[tabKey];
+    tab.orientation = saved.orientation || 'portrait';
+    tab.activeSlot  = saved.activeSlot  || 0;
+    tab.slots = (saved.slots || [defaultSlot()]).map(s => {
+      const slot = { ...defaultSlot(), ...s };
+      if (slot._libId != null) {
+        const item = state.library.find(i => i.id === slot._libId);
+        slot.screenshot = item ? item.img : null;
+        if (!item) slot._libId = null;
+      }
+      return slot;
+    });
+    if (!tab.slots.length) tab.slots = [defaultSlot()];
+    if (tab.activeSlot >= tab.slots.length) tab.activeSlot = 0;
+  }
+}
+
+async function saveCurrentProject() {
+  if (!db || !currentProjectId) return;
   setSaveBadge('saving');
   try {
-    // 1. Save library images (overwrite)
-    await dbClear('library');
+    // Replace this project's library rows only (leave other projects untouched)
+    const all = await dbGetAll('library');
+    for (const row of all) {
+      if (row.projectId === currentProjectId) await dbDelete('library', row.id);
+    }
     for (const item of state.library) {
-      const dataUrl = imgToDataUrl(item.img);
-      await dbPut('library', { id: item.id, dataUrl, name: item.name });
+      await dbPut('library', {
+        id: currentProjectId + '::' + item.id,
+        projectId: currentProjectId,
+        libId: item.id,
+        dataUrl: imgToDataUrl(item.img),
+        name: item.name,
+      });
     }
 
-    // 2. Save serialisable slot state (no Image objects)
-    const tabData = {};
-    for (const [tabKey, tab] of Object.entries(state.tabs)) {
-      tabData[tabKey] = {
-        orientation: tab.orientation,
-        activeSlot: tab.activeSlot,
-        slots: tab.slots.map(slot => {
-          const { screenshot, ...rest } = slot;
-          return rest;  // _libId kept, img reference dropped
-        }),
-      };
-    }
-    await dbPut('meta', {
-      key: 'state',
-      activeTab: state.activeTab,
-      libSeqNext: libSeq + 1,
-      tabs: tabData,
-    });
+    const meta = projectsList.find(p => p.id === currentProjectId);
+    const name = meta ? meta.name : 'Untitled project';
+    const createdAt = meta ? meta.createdAt : Date.now();
+    const updatedAt = Date.now();
+    await dbPut('projects', { id: currentProjectId, name, createdAt, updatedAt, data: buildProjectData() });
+    if (meta) meta.updatedAt = updatedAt;
+    await dbPut('meta', { key: 'app', currentProjectId });
 
     setSaveBadge('saved');
   } catch (e) {
@@ -1862,76 +1945,188 @@ function scheduleSave() {
   if (!initialized) return;
   setSaveBadge('saving');
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveState, 900);
+  saveTimer = setTimeout(saveCurrentProject, 900);
 }
 
-async function loadState() {
-  if (!db) return;
-  try {
-    // 1. Restore library
-    const libRows = await dbGetAll('library');
-    if (libRows.length) {
-      await Promise.all(libRows.map(row => new Promise(resolve => {
-        const img = new Image();
-        img.onload = () => {
-          state.library.push({ id: row.id, img, name: row.name });
-          resolve();
-        };
-        img.onerror = () => resolve();  // skip broken entries
-        img.src = row.dataUrl;
-      })));
-      // Sort by id so order is preserved
-      state.library.sort((a, b) => a.id - b.id);
-    }
+// Load a stored project into the in-memory workspace
+async function loadProjectIntoState(pid) {
+  resetWorkspace();
+  const rows = (await dbGetAll('library'))
+    .filter(r => r.projectId === pid)
+    .sort((a, b) => a.libId - b.libId);
+  await Promise.all(rows.map(row => new Promise(resolve => {
+    const img = new Image();
+    img.onload  = () => { state.library.push({ id: row.libId, img, name: row.name }); resolve(); };
+    img.onerror = () => resolve();
+    img.src = row.dataUrl;
+  })));
+  state.library.sort((a, b) => a.id - b.id);
+  const proj = await dbGet('projects', pid);
+  if (proj && proj.data) applyProjectData(proj.data);
+  currentProjectId = pid;
+}
 
-    // 2. Restore slot state
-    const meta = await dbGet('meta', 'state');
-    if (!meta) return;
+// ─────────────────────────────────────────────
+//  PROJECT UI
+// ─────────────────────────────────────────────
 
-    if (meta.libSeqNext) libSeq = meta.libSeqNext - 1;
-    if (meta.activeTab && state.tabs[meta.activeTab]) state.activeTab = meta.activeTab;
-
-    for (const [tabKey, saved] of Object.entries(meta.tabs || {})) {
-      if (!state.tabs[tabKey]) continue;
-      const tab = state.tabs[tabKey];
-      tab.orientation = saved.orientation || 'portrait';
-      tab.activeSlot  = saved.activeSlot  || 0;
-      tab.slots = (saved.slots || [defaultSlot()]).map(s => {
-        const slot = { ...defaultSlot(), ...s };
-        // Re-attach image from library
-        if (slot._libId != null) {
-          const item = state.library.find(i => i.id === slot._libId);
-          slot.screenshot = item ? item.img : null;
-          if (!item) slot._libId = null;
-        }
-        return slot;
-      });
-      if (!tab.slots.length) tab.slots = [defaultSlot()];
-      if (tab.activeSlot >= tab.slots.length) tab.activeSlot = 0;
-    }
-
-    // Sync active tab button
-    document.querySelectorAll('.tab-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.tab === state.activeTab);
+function renderProjectSelect() {
+  const sel = document.getElementById('project-select');
+  if (!sel) return;
+  sel.innerHTML = '';
+  projectsList
+    .slice()
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.id;
+      o.textContent = p.name;
+      if (p.id === currentProjectId) o.selected = true;
+      sel.appendChild(o);
     });
-  } catch (e) {
-    console.warn('Could not restore state:', e);
+}
+
+function applyWorkspaceToUI() {
+  buildSwatches();
+  buildDesigns();
+  document.querySelectorAll('.tab-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.tab === state.activeTab);
+  });
+  updateOrientBtns();
+  syncSidebarFromSlot();
+  renderSlotsUI();
+  renderProjectSelect();
+}
+
+async function switchProject(pid) {
+  if (!pid || pid === currentProjectId) return;
+  clearTimeout(saveTimer);
+  await saveCurrentProject();
+  await loadProjectIntoState(pid);
+  await dbPut('meta', { key: 'app', currentProjectId: pid });
+  applyWorkspaceToUI();
+}
+
+async function createProject(name) {
+  clearTimeout(saveTimer);
+  await saveCurrentProject();
+  const id = newProjectId();
+  resetWorkspace();
+  currentProjectId = id;
+  projectsList.push({ id, name, createdAt: Date.now(), updatedAt: Date.now() });
+  await saveCurrentProject();
+  applyWorkspaceToUI();
+}
+
+async function renameProject(name) {
+  const meta = projectsList.find(p => p.id === currentProjectId);
+  if (!meta) return;
+  meta.name = name;
+  renderProjectSelect();
+  await saveCurrentProject();
+}
+
+async function deleteProject(pid) {
+  await dbDelete('projects', pid);
+  const all = await dbGetAll('library');
+  for (const row of all) if (row.projectId === pid) await dbDelete('library', row.id);
+  projectsList = projectsList.filter(p => p.id !== pid);
+
+  if (pid === currentProjectId) {
+    if (projectsList.length) {
+      await loadProjectIntoState(projectsList[0].id);
+      await dbPut('meta', { key: 'app', currentProjectId });
+    } else {
+      const id = newProjectId();
+      resetWorkspace();
+      currentProjectId = id;
+      projectsList.push({ id, name: 'My Project', createdAt: Date.now(), updatedAt: Date.now() });
+      await saveCurrentProject();
+    }
+    applyWorkspaceToUI();
+  } else {
+    renderProjectSelect();
   }
 }
+
+document.getElementById('project-select').addEventListener('change', e => switchProject(e.target.value));
+document.getElementById('proj-new').addEventListener('click', async () => {
+  const name = prompt('New project name:', 'Untitled project');
+  if (name === null) return;
+  await createProject(name.trim() || 'Untitled project');
+});
+document.getElementById('proj-rename').addEventListener('click', async () => {
+  const meta = projectsList.find(p => p.id === currentProjectId);
+  const name = prompt('Rename project:', meta ? meta.name : '');
+  if (name === null) return;
+  if (name.trim()) await renameProject(name.trim());
+});
+document.getElementById('proj-delete').addEventListener('click', async () => {
+  if (projectsList.length <= 1) {
+    alert('You need at least one project. Create another before deleting this one.');
+    return;
+  }
+  const meta = projectsList.find(p => p.id === currentProjectId);
+  if (!confirm(`Delete project "${meta ? meta.name : ''}"? This cannot be undone.`)) return;
+  await deleteProject(currentProjectId);
+});
 
 // ─────────────────────────────────────────────
 //  INIT
 // ─────────────────────────────────────────────
 
+// Migrate a v1 single-state workspace into a project, if present
+async function migrateLegacyState() {
+  const old = await dbGet('meta', 'state');
+  if (!old) return null;
+  const id = newProjectId();
+  const all = await dbGetAll('library');
+  for (const row of all) {
+    if (row.projectId) continue;  // already migrated
+    await dbPut('library', { id: id + '::' + row.id, projectId: id, libId: row.id, dataUrl: row.dataUrl, name: row.name });
+    await dbDelete('library', row.id);
+  }
+  const now = Date.now();
+  await dbPut('projects', { id, name: 'My Project', createdAt: now, updatedAt: now,
+    data: { activeTab: old.activeTab, libSeqNext: old.libSeqNext, tabs: old.tabs } });
+  await dbDelete('meta', 'state');
+  await dbPut('meta', { key: 'app', currentProjectId: id });
+  return { id, name: 'My Project', createdAt: now, updatedAt: now };
+}
+
+async function bootstrapProjects() {
+  projectsList = (await dbGetAll('projects'))
+    .map(p => ({ id: p.id, name: p.name, createdAt: p.createdAt, updatedAt: p.updatedAt }));
+
+  if (!projectsList.length) {
+    const migrated = await migrateLegacyState();
+    if (migrated) projectsList.push(migrated);
+  }
+
+  if (!projectsList.length) {
+    // Brand-new user: create a starter project
+    const id = newProjectId();
+    resetWorkspace();
+    currentProjectId = id;
+    projectsList.push({ id, name: 'My Project', createdAt: Date.now(), updatedAt: Date.now() });
+    await saveCurrentProject();
+    return;
+  }
+
+  const app = await dbGet('meta', 'app');
+  const pid = (app && app.currentProjectId && projectsList.some(p => p.id === app.currentProjectId))
+    ? app.currentProjectId : projectsList[0].id;
+  await loadProjectIntoState(pid);
+  await dbPut('meta', { key: 'app', currentProjectId: pid });
+}
+
 async function init() {
   try { db = await openDB(); } catch (e) { console.warn('IndexedDB unavailable:', e); }
-  await loadState();
+  if (db) {
+    try { await bootstrapProjects(); } catch (e) { console.warn('Could not load projects:', e); }
+  }
   initialized = true;
-  buildSwatches();
-  buildDesigns();
-  updateOrientBtns();
-  syncSidebarFromSlot();
-  renderSlotsUI();
+  applyWorkspaceToUI();
 }
 
 init();
