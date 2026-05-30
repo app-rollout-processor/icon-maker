@@ -550,10 +550,233 @@
     }
     .btn-primary:hover { opacity: .92; transform: translateY(-1px); }
     .btn-primary:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; transform: none; }
+    .btn-secondary {
+      background: var(--card); color: var(--text);
+      border: 1.5px solid var(--border); padding: 9px 22px;
+      border-radius: 100px; font-size: .86rem; font-weight: 700;
+      cursor: pointer; transition: border-color .15s, background .15s;
+      white-space: nowrap;
+    }
+    .btn-secondary:hover { border-color: var(--primary); background: #f5f3ff; }
     .export-hint {
       font-size: .78rem;
       color: var(--muted);
     }
+
+    /* ───── Store Preview Modal ───── */
+    .sp-overlay {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, .6);
+      backdrop-filter: blur(6px); z-index: 100; display: none;
+      align-items: center; justify-content: center; padding: 20px;
+    }
+    .sp-overlay.open { display: flex; }
+    .sp-modal {
+      background: var(--bg); border-radius: 16px; width: 100%;
+      max-width: 1240px; height: calc(100vh - 40px); display: flex;
+      flex-direction: column; overflow: hidden; box-shadow: 0 30px 80px rgba(0,0,0,.4);
+    }
+    .sp-header {
+      display: flex; align-items: center; gap: 14px; padding: 14px 20px;
+      background: var(--card); border-bottom: 1px solid var(--border);
+    }
+    .sp-title { font-weight: 800; font-size: 1.05rem; flex-shrink: 0; }
+    .sp-tabs { display: flex; gap: 4px; background: var(--bg); padding: 3px; border-radius: 100px; }
+    .sp-tab {
+      background: none; border: none; padding: 7px 16px; border-radius: 100px;
+      font-size: .82rem; font-weight: 600; color: var(--muted); cursor: pointer;
+    }
+    .sp-tab.active { background: var(--card); color: var(--text); box-shadow: var(--shadow); }
+    .sp-spacer { flex: 1; }
+    .sp-close {
+      background: none; border: none; font-size: 1.3rem; cursor: pointer;
+      color: var(--muted); width: 32px; height: 32px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .sp-close:hover { background: var(--bg); color: var(--text); }
+    .sp-body { flex: 1; display: flex; min-height: 0; }
+
+    .sp-form {
+      width: 260px; flex-shrink: 0; padding: 16px; overflow-y: auto;
+      background: var(--card); border-right: 1px solid var(--border);
+    }
+    .sp-form h4 { font-size: .72rem; text-transform: uppercase; letter-spacing: .5px;
+                  color: var(--muted); margin: 0 0 8px; font-weight: 700; }
+    .sp-form label { display: block; font-size: .72rem; color: var(--muted);
+                     font-weight: 600; margin: 10px 0 4px; }
+    .sp-form input[type=text], .sp-form select, .sp-form textarea {
+      width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px;
+      font-size: .82rem; font-family: inherit; background: #fff; color: var(--text);
+    }
+    .sp-form textarea { min-height: 64px; resize: vertical; }
+    .sp-icon-row { display: flex; gap: 10px; align-items: center; }
+    .sp-icon-preview {
+      width: 56px; height: 56px; border-radius: 13px; background: #e2e8f0;
+      flex-shrink: 0; overflow: hidden; display: flex; align-items: center;
+      justify-content: center; color: var(--muted); font-size: .7rem; border: 1px solid var(--border);
+    }
+    .sp-icon-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .sp-icon-btn { font-size: .76rem; padding: 6px 10px; border: 1.5px solid var(--border);
+                   background: #fff; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .sp-icon-btn:hover { border-color: var(--primary); }
+
+    .sp-stage {
+      flex: 1; overflow: auto; padding: 24px; display: flex;
+      align-items: flex-start; justify-content: center; background: var(--bg);
+    }
+    .sp-mode-bar {
+      display: flex; gap: 4px; padding: 3px; background: #e2e8f0;
+      border-radius: 100px; margin-bottom: 14px;
+    }
+    .sp-mode-btn {
+      background: none; border: none; padding: 6px 14px; border-radius: 100px;
+      font-size: .78rem; font-weight: 600; color: var(--muted); cursor: pointer;
+    }
+    .sp-mode-btn.active { background: #fff; color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+
+    /* ── Phone-frame mockup ── */
+    .sp-phone {
+      width: 360px; background: #111; border-radius: 44px; padding: 12px;
+      box-shadow: 0 30px 60px rgba(0,0,0,.35), 0 0 0 2px #2a2a2a;
+      flex-shrink: 0;
+    }
+    .sp-phone-screen {
+      background: #fff; border-radius: 32px; overflow: hidden; position: relative;
+      height: 720px; display: flex; flex-direction: column;
+    }
+    .sp-statusbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 22px 6px; font-size: .78rem; font-weight: 600; color: #000;
+      flex-shrink: 0;
+    }
+    .sp-notch {
+      width: 110px; height: 28px; background: #000; border-radius: 100px;
+      position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    }
+    .sp-scrolly { overflow-y: auto; flex: 1; }
+
+    /* iOS App Store phone */
+    .ios-listing { padding: 14px 18px 24px; font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #000; }
+    .ios-top { display: flex; gap: 14px; align-items: center; }
+    .ios-top .icon-box { width: 84px; height: 84px; border-radius: 19px; overflow: hidden;
+                         background: #f3f4f6; flex-shrink: 0; box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+    .ios-top .icon-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ios-app-name { font-size: 1.15rem; font-weight: 700; line-height: 1.15; }
+    .ios-sub { font-size: .82rem; color: #6b6b70; margin-top: 2px; }
+    .ios-dev { font-size: .76rem; color: #007aff; margin-top: 6px; }
+    .ios-get-row { display: flex; align-items: center; justify-content: space-between;
+                   margin-top: 12px; }
+    .ios-get { background: #007aff; color: #fff; border: none; font-weight: 700;
+               padding: 6px 22px; border-radius: 100px; font-size: .82rem; }
+    .ios-iap { font-size: .65rem; color: #6b6b70; margin-top: 4px; text-align: center; }
+    .ios-stats { display: flex; margin-top: 18px; border-top: 1px solid #efeff4;
+                 border-bottom: 1px solid #efeff4; padding: 10px 0; }
+    .ios-stat { flex: 1; text-align: center; border-right: 1px solid #efeff4; padding: 2px 0; }
+    .ios-stat:last-child { border-right: none; }
+    .ios-stat .v { font-size: .92rem; font-weight: 700; color: #6b6b70; }
+    .ios-stat .l { font-size: .58rem; color: #8e8e93; text-transform: uppercase;
+                   letter-spacing: .4px; margin-top: 2px; }
+    .ios-stars { color: #ff9500; letter-spacing: -1px; font-size: .8rem; }
+    .ios-section-h { font-size: 1rem; font-weight: 700; margin: 18px 0 10px; }
+    .ios-screens { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px;
+                   margin: 0 -18px; padding-left: 18px; padding-right: 18px;
+                   scrollbar-width: none; }
+    .ios-screens::-webkit-scrollbar { display: none; }
+    .ios-screens canvas { flex-shrink: 0; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.1);
+                          background: #f3f4f6; }
+    .ios-desc { font-size: .82rem; color: #1c1c1e; line-height: 1.45; margin-top: 8px;
+                white-space: pre-wrap; }
+
+    /* Google Play phone */
+    .gp-listing { font-family: 'Roboto', -apple-system, sans-serif; color: #202124; }
+    .gp-listing .gp-top { padding: 16px 16px 8px; display: flex; gap: 14px; align-items: center; }
+    .gp-icon-box { width: 72px; height: 72px; border-radius: 16px; overflow: hidden;
+                   background: #f1f3f4; flex-shrink: 0; }
+    .gp-icon-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .gp-app-name { font-size: 1.2rem; font-weight: 500; line-height: 1.15; }
+    .gp-dev { font-size: .8rem; color: #01875f; margin-top: 4px; }
+    .gp-meta { font-size: .72rem; color: #5f6368; margin-top: 2px; }
+    .gp-metrics { display: flex; padding: 12px 16px; gap: 0; }
+    .gp-metric { flex: 1; text-align: center; }
+    .gp-metric .v { font-size: .92rem; font-weight: 600; }
+    .gp-metric .l { font-size: .65rem; color: #5f6368; margin-top: 1px; }
+    .gp-install-row { padding: 0 16px 14px; }
+    .gp-install { width: 100%; background: #01875f; color: #fff; border: none;
+                  font-weight: 600; padding: 10px; border-radius: 24px; font-size: .9rem; }
+    .gp-screens { display: flex; gap: 8px; overflow-x: auto; padding: 4px 16px 16px;
+                  scrollbar-width: none; }
+    .gp-screens::-webkit-scrollbar { display: none; }
+    .gp-screens canvas { flex-shrink: 0; border-radius: 10px; background: #f1f3f4; }
+    .gp-section { padding: 14px 16px; border-top: 1px solid #ebebeb; }
+    .gp-section-h { font-size: 1rem; font-weight: 500; margin-bottom: 8px; }
+    .gp-desc { font-size: .82rem; color: #202124; line-height: 1.5; white-space: pre-wrap; }
+
+    /* ── Web mockup container ── */
+    .sp-web {
+      width: 100%; max-width: 1080px; background: #fff; border-radius: 12px;
+      overflow: hidden; box-shadow: 0 14px 40px rgba(0,0,0,.18);
+      flex-shrink: 0;
+    }
+    .sp-web-bar {
+      background: #e8e8ed; padding: 8px 12px; display: flex; gap: 6px; align-items: center;
+    }
+    .sp-dot { width: 11px; height: 11px; border-radius: 50%; }
+    .sp-dot.r { background: #ff5f57; } .sp-dot.y { background: #ffbd2e; } .sp-dot.g { background: #28c840; }
+    .sp-url { background: #fff; border-radius: 6px; padding: 4px 10px; font-size: .72rem;
+              color: #6b6b70; margin-left: 14px; min-width: 260px; }
+    .sp-web-content { padding: 28px 32px; }
+
+    /* iOS App Store Web */
+    .ios-web { font-family: -apple-system, BlinkMacSystemFont, sans-serif; color: #1d1d1f; }
+    .ios-web-head { display: flex; gap: 22px; align-items: center; padding-bottom: 22px;
+                    border-bottom: 1px solid #d2d2d7; }
+    .ios-web-head .icon-box { width: 130px; height: 130px; border-radius: 28px; overflow: hidden;
+                              background: #f3f4f6; flex-shrink: 0;
+                              box-shadow: 0 6px 16px rgba(0,0,0,.08); }
+    .ios-web-head .icon-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .ios-web-meta-cat { font-size: .82rem; color: #6e6e73; font-weight: 500; }
+    .ios-web-name { font-size: 2rem; font-weight: 700; line-height: 1.1; margin-top: 4px; }
+    .ios-web-sub { font-size: 1rem; color: #6e6e73; margin-top: 4px; }
+    .ios-web-actions { margin-top: 14px; display: flex; align-items: center; gap: 12px; }
+    .ios-web-get { background: #007aff; color: #fff; border: none; font-weight: 600;
+                   padding: 5px 22px; border-radius: 100px; font-size: .86rem; }
+    .ios-web-iap { font-size: .68rem; color: #6e6e73; }
+    .ios-web-screens { display: flex; gap: 14px; overflow-x: auto;
+                       margin: 24px -32px 0; padding: 4px 32px 24px;
+                       scrollbar-width: thin; }
+    .ios-web-screens canvas { flex-shrink: 0; border-radius: 18px;
+                              box-shadow: 0 2px 8px rgba(0,0,0,.12); background: #f3f4f6; }
+    .ios-web-desc-h { font-size: .92rem; font-weight: 700; margin: 8px 0 8px;
+                      text-transform: uppercase; color: #6e6e73; letter-spacing: .4px; }
+    .ios-web-desc { font-size: .92rem; color: #1d1d1f; line-height: 1.55; white-space: pre-wrap; }
+
+    /* Google Play Web */
+    .gp-web { font-family: 'Roboto', -apple-system, sans-serif; color: #202124; }
+    .gp-web-head { display: flex; gap: 26px; align-items: flex-start; padding-bottom: 20px;
+                   border-bottom: 1px solid #ebebeb; }
+    .gp-web-head .icon-box { width: 100px; height: 100px; border-radius: 24px; overflow: hidden;
+                             background: #f1f3f4; flex-shrink: 0; }
+    .gp-web-head .icon-box img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .gp-web-info { flex: 1; }
+    .gp-web-name { font-size: 1.8rem; font-weight: 400; line-height: 1.1; }
+    .gp-web-dev { font-size: .9rem; color: #01875f; margin-top: 6px; }
+    .gp-web-meta { font-size: .78rem; color: #5f6368; margin-top: 2px; }
+    .gp-web-metrics { display: flex; gap: 26px; margin-top: 16px; }
+    .gp-web-metric { text-align: center; }
+    .gp-web-metric .v { font-size: 1rem; font-weight: 500; }
+    .gp-web-metric .l { font-size: .7rem; color: #5f6368; margin-top: 1px; }
+    .gp-web-actions { margin-left: auto; align-self: center; }
+    .gp-web-install { background: #01875f; color: #fff; border: none; font-weight: 500;
+                      padding: 9px 28px; border-radius: 24px; font-size: .9rem; }
+    .gp-web-screens { display: flex; gap: 16px; overflow-x: auto;
+                      margin: 24px -32px 0; padding: 6px 32px 24px;
+                      scrollbar-width: thin; }
+    .gp-web-screens canvas { flex-shrink: 0; border-radius: 10px;
+                             box-shadow: 0 2px 6px rgba(0,0,0,.1); background: #f1f3f4; }
+    .gp-web-desc-h { font-size: 1.05rem; font-weight: 500; margin: 6px 0 10px; }
+    .gp-web-desc { font-size: .92rem; color: #202124; line-height: 1.55; white-space: pre-wrap; }
+
+    .sp-empty { color: var(--muted); font-size: .9rem; padding: 40px 20px;
+                text-align: center; }
 
     /* Save badge */
     .save-badge {
@@ -757,6 +980,7 @@
     <!-- Export bar -->
     <div class="export-bar">
       <button class="btn-primary" id="btn-export">Download ZIP</button>
+      <button class="btn-secondary" id="btn-preview-store">Preview in Store</button>
       <span class="export-hint" id="export-hint">Export all screenshots at full store resolution</span>
     </div>
 
@@ -766,6 +990,47 @@
 <footer>
   Screenshot Studio &nbsp;·&nbsp; All processing is done locally in your browser. No images are uploaded.
 </footer>
+
+<!-- ── Store Preview Modal ── -->
+<div class="sp-overlay" id="sp-overlay">
+  <div class="sp-modal">
+    <div class="sp-header">
+      <span class="sp-title">Store Preview</span>
+      <div class="sp-tabs" id="sp-store-tabs">
+        <button class="sp-tab active" data-store="ios">App Store (iOS)</button>
+        <button class="sp-tab" data-store="play">Google Play (Android)</button>
+      </div>
+      <div class="sp-spacer"></div>
+      <button class="sp-close" id="sp-close" title="Close">✕</button>
+    </div>
+    <div class="sp-body">
+      <aside class="sp-form" id="sp-form">
+        <h4>Listing details</h4>
+        <label>App icon</label>
+        <div class="sp-icon-row">
+          <div class="sp-icon-preview" id="sp-icon-preview">No icon</div>
+          <button class="sp-icon-btn" type="button" id="sp-icon-btn">Upload</button>
+          <input type="file" id="sp-icon-file" accept="image/*" style="display:none;">
+        </div>
+        <label>App name</label>
+        <input type="text" id="sp-app-name" maxlength="40">
+        <label>Subtitle / tagline</label>
+        <input type="text" id="sp-subtitle" maxlength="60">
+        <label>Developer</label>
+        <input type="text" id="sp-developer" maxlength="40">
+        <label>Category</label>
+        <input type="text" id="sp-category" maxlength="30">
+        <label>Rating <span id="sp-rating-val" style="float:right;font-weight:700;color:var(--text);"></span></label>
+        <input type="range" id="sp-rating" min="1" max="5" step="0.1">
+        <label>Rating count</label>
+        <input type="text" id="sp-rating-count" maxlength="10">
+        <label>Description</label>
+        <textarea id="sp-description" maxlength="500"></textarea>
+      </aside>
+      <div class="sp-stage" id="sp-stage"></div>
+    </div>
+  </div>
+</div>
 
 <script>
 // ─────────────────────────────────────────────
@@ -849,9 +1114,24 @@ function defaultSlot() {
 
 let libSeq = 0;
 
+function defaultListing() {
+  return {
+    appName: 'My App',
+    developer: 'Your Studio',
+    subtitle: 'A delightful new experience',
+    description: 'Discover features designed to make your daily life simpler, faster, and more fun. Trusted by thousands of users worldwide.',
+    category: 'Productivity',
+    rating: 4.7,
+    ratingCount: '12.3K',
+    price: 'Free',
+    iconDataUrl: null,
+  };
+}
+
 const state = {
   activeTab: 'apple-iphone',
   library: [],   // [{ id, img, name }]
+  listing: defaultListing(),
   tabs: {
     'apple-iphone':  { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
     'apple-ipad':    { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
@@ -1930,6 +2210,392 @@ document.getElementById('btn-export').addEventListener('click', async () => {
 });
 
 // ─────────────────────────────────────────────
+//  STORE PREVIEW MODAL
+// ─────────────────────────────────────────────
+
+let spState = { store: 'ios', mode: 'phone' };
+
+function spEscape(s) { return String(s || '').replace(/[&<>"']/g, c =>
+  ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]); }
+
+function spStars(rating) {
+  const r = Math.max(0, Math.min(5, Number(rating) || 0));
+  const full = Math.floor(r);
+  const half = (r - full) >= 0.5;
+  return '★'.repeat(full) + (half ? '☆' : '') + '✩'.repeat(5 - full - (half ? 1 : 0));
+}
+
+function spOpenModal() {
+  spSyncFormFromState();
+  document.getElementById('sp-overlay').classList.add('open');
+  spRenderStage();
+}
+function spCloseModal() {
+  document.getElementById('sp-overlay').classList.remove('open');
+}
+
+function spSyncFormFromState() {
+  const L = state.listing;
+  document.getElementById('sp-app-name').value     = L.appName;
+  document.getElementById('sp-subtitle').value     = L.subtitle;
+  document.getElementById('sp-developer').value    = L.developer;
+  document.getElementById('sp-category').value     = L.category;
+  document.getElementById('sp-rating').value       = L.rating;
+  document.getElementById('sp-rating-val').textContent = Number(L.rating).toFixed(1);
+  document.getElementById('sp-rating-count').value = L.ratingCount;
+  document.getElementById('sp-description').value  = L.description;
+
+  const iconPrev = document.getElementById('sp-icon-preview');
+  iconPrev.innerHTML = L.iconDataUrl
+    ? `<img src="${L.iconDataUrl}" alt="">`
+    : 'No icon';
+}
+
+function spOnFormInput() {
+  const L = state.listing;
+  L.appName     = document.getElementById('sp-app-name').value;
+  L.subtitle    = document.getElementById('sp-subtitle').value;
+  L.developer   = document.getElementById('sp-developer').value;
+  L.category    = document.getElementById('sp-category').value;
+  L.rating      = Number(document.getElementById('sp-rating').value);
+  L.ratingCount = document.getElementById('sp-rating-count').value;
+  L.description = document.getElementById('sp-description').value;
+  document.getElementById('sp-rating-val').textContent = L.rating.toFixed(1);
+  scheduleSave();
+  spRenderStage();
+}
+
+function spOnIconUpload(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    state.listing.iconDataUrl = e.target.result;
+    spSyncFormFromState();
+    scheduleSave();
+    spRenderStage();
+  };
+  reader.readAsDataURL(file);
+}
+
+// Render a single slot's preview canvas at the given height
+function spSlotCanvas(slot, storeKey, h) {
+  const cfg = STORE_CONFIGS[storeKey];
+  const dims = cfg.portrait;
+  const w = Math.round(dims.w * (h / dims.h));
+  return renderSlot(slot, storeKey, w, h);
+}
+
+function spRenderStage() {
+  const stage = document.getElementById('sp-stage');
+  stage.innerHTML = '';
+
+  const wrapper = document.createElement('div');
+  wrapper.style.cssText = 'display:flex;flex-direction:column;align-items:center;width:100%;';
+
+  // Mode toggle
+  const modeBar = document.createElement('div');
+  modeBar.className = 'sp-mode-bar';
+  for (const m of [['phone','On Phone'], ['web','On Web']]) {
+    const b = document.createElement('button');
+    b.className = 'sp-mode-btn' + (spState.mode === m[0] ? ' active' : '');
+    b.textContent = m[1];
+    b.addEventListener('click', () => { spState.mode = m[0]; spRenderStage(); });
+    modeBar.appendChild(b);
+  }
+  wrapper.appendChild(modeBar);
+
+  // Pick slots based on store
+  const storeKey = spState.store === 'ios' ? 'apple-iphone' : 'google-phone';
+  const slots = state.tabs[storeKey].slots;
+  const hasShots = slots.some(s => s.screenshot);
+
+  if (!hasShots) {
+    const empty = document.createElement('div');
+    empty.className = 'sp-empty';
+    empty.textContent = `No screenshots in the ${spState.store === 'ios' ? 'Apple iPhone' : 'Android Phone'} tab yet. Upload some to see them in this preview.`;
+    wrapper.appendChild(empty);
+    stage.appendChild(wrapper);
+    return;
+  }
+
+  if (spState.mode === 'phone') {
+    wrapper.appendChild(spState.store === 'ios' ? spBuildIosPhone(slots) : spBuildPlayPhone(slots));
+  } else {
+    wrapper.appendChild(spState.store === 'ios' ? spBuildIosWeb(slots) : spBuildPlayWeb(slots));
+  }
+  stage.appendChild(wrapper);
+}
+
+function spIconHtml(size) {
+  const L = state.listing;
+  return L.iconDataUrl
+    ? `<img src="${L.iconDataUrl}" alt="">`
+    : `<div style="width:100%;height:100%;background:linear-gradient(135deg,#6366f1,#7c3aed);"></div>`;
+}
+
+// ── iOS App Store on Phone ──
+function spBuildIosPhone(slots) {
+  const L = state.listing;
+  const phone = document.createElement('div');
+  phone.className = 'sp-phone';
+
+  const screen = document.createElement('div');
+  screen.className = 'sp-phone-screen';
+  screen.innerHTML = `
+    <div class="sp-notch"></div>
+    <div class="sp-statusbar">
+      <span>9:41</span><span style="font-size:.7rem;">●●●● 5G &nbsp; 100%</span>
+    </div>
+    <div class="sp-scrolly">
+      <div class="ios-listing">
+        <div class="ios-top">
+          <div class="icon-box">${spIconHtml()}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="ios-app-name">${spEscape(L.appName)}</div>
+            <div class="ios-sub">${spEscape(L.subtitle)}</div>
+            <div class="ios-dev">${spEscape(L.developer)}</div>
+          </div>
+          <div style="text-align:center;">
+            <button class="ios-get">GET</button>
+            <div class="ios-iap">In-App<br>Purchases</div>
+          </div>
+        </div>
+        <div class="ios-stats">
+          <div class="ios-stat">
+            <div class="v">${Number(L.rating).toFixed(1)}</div>
+            <div class="ios-stars">${spStars(L.rating)}</div>
+            <div class="l">${spEscape(L.ratingCount)} Ratings</div>
+          </div>
+          <div class="ios-stat">
+            <div class="v" style="color:#ff9500;">#${(L.appName.length % 40) + 5}</div>
+            <div class="l">${spEscape(L.category)}</div>
+            <div class="l" style="opacity:0;">.</div>
+          </div>
+          <div class="ios-stat">
+            <div class="v">4+</div>
+            <div class="l">Age</div>
+            <div class="l" style="opacity:0;">.</div>
+          </div>
+        </div>
+        <div class="ios-section-h">Preview</div>
+      </div>
+      <div class="ios-screens" id="ios-phone-screens"></div>
+      <div class="ios-listing" style="padding-top:0;">
+        <div class="ios-section-h" style="margin-top:8px;">About this app</div>
+        <div class="ios-desc">${spEscape(L.description)}</div>
+      </div>
+    </div>
+  `;
+  phone.appendChild(screen);
+
+  setTimeout(() => {
+    const row = screen.querySelector('#ios-phone-screens');
+    slots.forEach(s => {
+      if (!s.screenshot) return;
+      const c = spSlotCanvas(s, 'apple-iphone', 320);
+      c.style.width  = (c.width / c.height * 160) + 'px';
+      c.style.height = '160px';
+      row.appendChild(c);
+    });
+  }, 0);
+
+  return phone;
+}
+
+// ── Google Play on Phone ──
+function spBuildPlayPhone(slots) {
+  const L = state.listing;
+  const phone = document.createElement('div');
+  phone.className = 'sp-phone';
+  phone.style.borderRadius = '36px';
+
+  const screen = document.createElement('div');
+  screen.className = 'sp-phone-screen';
+  screen.style.borderRadius = '26px';
+  screen.innerHTML = `
+    <div class="sp-statusbar" style="padding:10px 18px 6px;">
+      <span>9:41</span>
+      <span style="font-size:.7rem;">📶 📡 🔋</span>
+    </div>
+    <div class="sp-scrolly">
+      <div class="gp-listing">
+        <div class="gp-top">
+          <div class="gp-icon-box">${spIconHtml()}</div>
+          <div style="flex:1;min-width:0;">
+            <div class="gp-app-name">${spEscape(L.appName)}</div>
+            <div class="gp-dev">${spEscape(L.developer)}</div>
+            <div class="gp-meta">Contains ads · In-app purchases</div>
+          </div>
+        </div>
+        <div class="gp-metrics">
+          <div class="gp-metric">
+            <div class="v">${Number(L.rating).toFixed(1)} ★</div>
+            <div class="l">${spEscape(L.ratingCount)} reviews</div>
+          </div>
+          <div class="gp-metric">
+            <div class="v">10M+</div>
+            <div class="l">Downloads</div>
+          </div>
+          <div class="gp-metric">
+            <div class="v">E</div>
+            <div class="l">Everyone</div>
+          </div>
+        </div>
+        <div class="gp-install-row">
+          <button class="gp-install">Install</button>
+        </div>
+        <div class="gp-screens" id="gp-phone-screens"></div>
+        <div class="gp-section">
+          <div class="gp-section-h">About this app</div>
+          <div class="gp-desc">${spEscape(L.description)}</div>
+        </div>
+      </div>
+    </div>
+  `;
+  phone.appendChild(screen);
+
+  setTimeout(() => {
+    const row = screen.querySelector('#gp-phone-screens');
+    slots.forEach(s => {
+      if (!s.screenshot) return;
+      const c = spSlotCanvas(s, 'google-phone', 280);
+      c.style.width  = (c.width / c.height * 140) + 'px';
+      c.style.height = '140px';
+      row.appendChild(c);
+    });
+  }, 0);
+
+  return phone;
+}
+
+// ── iOS App Store on Web ──
+function spBuildIosWeb(slots) {
+  const L = state.listing;
+  const web = document.createElement('div');
+  web.className = 'sp-web';
+  web.innerHTML = `
+    <div class="sp-web-bar">
+      <span class="sp-dot r"></span><span class="sp-dot y"></span><span class="sp-dot g"></span>
+      <div class="sp-url">apps.apple.com/app/${encodeURIComponent(L.appName.toLowerCase().replace(/\s+/g,'-'))}</div>
+    </div>
+    <div class="sp-web-content ios-web">
+      <div class="ios-web-head">
+        <div class="icon-box">${spIconHtml()}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="ios-web-meta-cat">${spEscape(L.category).toUpperCase()}</div>
+          <div class="ios-web-name">${spEscape(L.appName)}</div>
+          <div class="ios-web-sub">${spEscape(L.subtitle)}</div>
+          <div class="ios-web-actions">
+            <button class="ios-web-get">Get</button>
+            <span class="ios-web-iap">In-App Purchases</span>
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:2.2rem;font-weight:600;">${Number(L.rating).toFixed(1)}</div>
+          <div class="ios-stars" style="font-size:1rem;">${spStars(L.rating)}</div>
+          <div style="font-size:.72rem;color:#6e6e73;margin-top:2px;">${spEscape(L.ratingCount)} Ratings</div>
+        </div>
+      </div>
+      <div class="ios-web-screens" id="ios-web-screens"></div>
+      <div class="ios-web-desc-h">Description</div>
+      <div class="ios-web-desc">${spEscape(L.description)}</div>
+    </div>
+  `;
+  setTimeout(() => {
+    const row = web.querySelector('#ios-web-screens');
+    slots.forEach(s => {
+      if (!s.screenshot) return;
+      const c = spSlotCanvas(s, 'apple-iphone', 480);
+      c.style.width  = (c.width / c.height * 220) + 'px';
+      c.style.height = '220px';
+      row.appendChild(c);
+    });
+  }, 0);
+  return web;
+}
+
+// ── Google Play on Web ──
+function spBuildPlayWeb(slots) {
+  const L = state.listing;
+  const web = document.createElement('div');
+  web.className = 'sp-web';
+  web.innerHTML = `
+    <div class="sp-web-bar">
+      <span class="sp-dot r"></span><span class="sp-dot y"></span><span class="sp-dot g"></span>
+      <div class="sp-url">play.google.com/store/apps/details?id=com.${encodeURIComponent((L.developer||'studio').toLowerCase().replace(/\s+/g,''))}.${encodeURIComponent((L.appName||'app').toLowerCase().replace(/\s+/g,''))}</div>
+    </div>
+    <div class="sp-web-content gp-web">
+      <div class="gp-web-head">
+        <div class="icon-box">${spIconHtml()}</div>
+        <div class="gp-web-info">
+          <div class="gp-web-name">${spEscape(L.appName)}</div>
+          <div class="gp-web-dev">${spEscape(L.developer)}</div>
+          <div class="gp-web-meta">Contains ads · In-app purchases</div>
+          <div class="gp-web-metrics">
+            <div class="gp-web-metric">
+              <div class="v">${Number(L.rating).toFixed(1)} ★</div>
+              <div class="l">${spEscape(L.ratingCount)} reviews</div>
+            </div>
+            <div class="gp-web-metric">
+              <div class="v">10M+</div>
+              <div class="l">Downloads</div>
+            </div>
+            <div class="gp-web-metric">
+              <div class="v">E</div>
+              <div class="l">Everyone</div>
+            </div>
+          </div>
+        </div>
+        <div class="gp-web-actions">
+          <button class="gp-web-install">Install</button>
+        </div>
+      </div>
+      <div class="gp-web-screens" id="gp-web-screens"></div>
+      <div class="gp-web-desc-h">About this app</div>
+      <div class="gp-web-desc">${spEscape(L.description)}</div>
+    </div>
+  `;
+  setTimeout(() => {
+    const row = web.querySelector('#gp-web-screens');
+    slots.forEach(s => {
+      if (!s.screenshot) return;
+      const c = spSlotCanvas(s, 'google-phone', 480);
+      c.style.width  = (c.width / c.height * 220) + 'px';
+      c.style.height = '220px';
+      row.appendChild(c);
+    });
+  }, 0);
+  return web;
+}
+
+// Wire up modal events
+document.getElementById('btn-preview-store').addEventListener('click', spOpenModal);
+document.getElementById('sp-close').addEventListener('click', spCloseModal);
+document.getElementById('sp-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('sp-overlay')) spCloseModal();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('sp-overlay').classList.contains('open')) spCloseModal();
+});
+
+document.getElementById('sp-store-tabs').addEventListener('click', e => {
+  const btn = e.target.closest('.sp-tab');
+  if (!btn) return;
+  spState.store = btn.dataset.store;
+  document.querySelectorAll('#sp-store-tabs .sp-tab').forEach(b => b.classList.toggle('active', b === btn));
+  spRenderStage();
+});
+
+['sp-app-name','sp-subtitle','sp-developer','sp-category','sp-rating','sp-rating-count','sp-description']
+  .forEach(id => document.getElementById(id).addEventListener('input', spOnFormInput));
+
+document.getElementById('sp-icon-btn').addEventListener('click', () => document.getElementById('sp-icon-file').click());
+document.getElementById('sp-icon-file').addEventListener('change', e => {
+  if (e.target.files[0]) spOnIconUpload(e.target.files[0]);
+  e.target.value = '';
+});
+
+// ─────────────────────────────────────────────
 //  PERSISTENCE (IndexedDB)
 // ─────────────────────────────────────────────
 
@@ -2034,7 +2700,7 @@ function buildProjectData() {
       }),
     };
   }
-  return { activeTab: state.activeTab, libSeqNext: libSeq + 1, tabs: tabData };
+  return { activeTab: state.activeTab, libSeqNext: libSeq + 1, tabs: tabData, listing: state.listing };
 }
 
 // Reset the in-memory workspace to an empty project
@@ -2048,6 +2714,7 @@ function freshTabs() {
 }
 function resetWorkspace() {
   state.library = [];
+  state.listing = defaultListing();
   state.activeTab = 'apple-iphone';
   state.tabs = freshTabs();
   libSeq = 0;
@@ -2056,6 +2723,7 @@ function resetWorkspace() {
 // Apply serialised data onto the (already reset) workspace, reattaching images
 function applyProjectData(data) {
   libSeq = (data.libSeqNext || 1) - 1;
+  if (data.listing) state.listing = { ...defaultListing(), ...data.listing };
   if (data.activeTab && state.tabs[data.activeTab]) state.activeTab = data.activeTab;
   for (const [tabKey, saved] of Object.entries(data.tabs || {})) {
     if (!state.tabs[tabKey]) continue;
