@@ -791,6 +791,46 @@
     /* ── Hidden file input ── */
     .hidden-file { display: none; }
 
+    /* ── Brand Kit ── */
+    .brand-swatches {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+    }
+    .brand-swatch-wrap { position: relative; cursor: pointer; }
+    .brand-swatch-wrap.selected .brand-swatch {
+      outline: 3px solid var(--primary); outline-offset: 2px;
+    }
+    .brand-swatch {
+      width: 30px; height: 30px; border-radius: 8px;
+      border: 1px solid rgba(0,0,0,.12); transition: transform .12s;
+    }
+    .brand-swatch:hover { transform: scale(1.12); }
+    .brand-color-inp {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer;
+      width: 100%; height: 100%; padding: 0; border: none;
+    }
+    .brand-apply {
+      background: #f8fafc; border: 1px solid var(--border);
+      border-radius: 9px; padding: 8px 10px; margin-top: 6px;
+    }
+    .brand-apply-label {
+      font-size: .7rem; color: var(--muted); display: block; margin-bottom: 6px; font-weight: 600;
+    }
+    .brand-apply-btns { display: flex; gap: 5px; flex-wrap: wrap; }
+    .brand-apply-btn {
+      flex: 1; min-width: 0; padding: 5px 4px; font-size: .71rem; font-weight: 600;
+      border: 1.5px solid var(--border); border-radius: 7px; background: #fff;
+      cursor: pointer; color: var(--text); white-space: nowrap;
+      transition: border-color .12s, background .12s;
+    }
+    .brand-apply-btn:hover { border-color: var(--primary); background: #f0f0ff; }
+    .brand-add-btn {
+      width: 30px; height: 30px; border-radius: 8px; border: 1.5px dashed var(--border);
+      background: none; cursor: pointer; font-size: 1.1rem; color: var(--muted);
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color .12s, color .12s;
+    }
+    .brand-add-btn:hover { border-color: var(--primary); color: var(--primary); }
+
     /* Scrollbar styling for sidebar */
     .sidebar::-webkit-scrollbar { width: 4px; }
     .sidebar::-webkit-scrollbar-track { background: transparent; }
@@ -922,6 +962,20 @@
           <label class="radio-pill">
             <input type="radio" name="txt-pos" value="bottom" checked> Bottom
           </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Brand Kit -->
+    <div class="sidebar-section">
+      <div class="sidebar-heading">Brand Kit</div>
+      <div class="brand-swatches" id="brand-swatches"></div>
+      <div class="brand-apply" id="brand-apply" style="display:none">
+        <span class="brand-apply-label">Apply selected color as:</span>
+        <div class="brand-apply-btns">
+          <button type="button" class="brand-apply-btn" id="bk-bg">Background</button>
+          <button type="button" class="brand-apply-btn" id="bk-text">Text</button>
+          <button type="button" class="brand-apply-btn" id="bk-accent">Accent</button>
         </div>
       </div>
     </div>
@@ -1114,6 +1168,10 @@ function defaultSlot() {
 
 let libSeq = 0;
 
+function defaultBrandKit() {
+  return { colors: ['#6366f1', '#764ba2', '#fde047', '#22c55e', '#f97316', '#ffffff'] };
+}
+
 function defaultListing() {
   return {
     appName: 'My App',
@@ -1132,6 +1190,7 @@ const state = {
   activeTab: 'apple-iphone',
   library: [],   // [{ id, img, name }]
   listing: defaultListing(),
+  brandKit: defaultBrandKit(),
   tabs: {
     'apple-iphone':  { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
     'apple-ipad':    { orientation:'portrait', slots:[defaultSlot()], activeSlot:0 },
@@ -1765,6 +1824,98 @@ function buildDesigns() {
     grid.appendChild(btn);
   });
 }
+
+// ─────────────────────────────────────────────
+//  BRAND KIT
+// ─────────────────────────────────────────────
+
+let selectedBrandIdx = null;
+
+function renderBrandKit() {
+  const grid = document.getElementById('brand-swatches');
+  const applyPanel = document.getElementById('brand-apply');
+  if (!grid) return;
+  grid.innerHTML = '';
+
+  state.brandKit.colors.forEach((color, i) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'brand-swatch-wrap' + (selectedBrandIdx === i ? ' selected' : '');
+
+    const sw = document.createElement('div');
+    sw.className = 'brand-swatch';
+    sw.style.background = color;
+    sw.title = `${color} — click to select, double-click to edit`;
+    sw.addEventListener('click', () => {
+      selectedBrandIdx = (selectedBrandIdx === i) ? null : i;
+      renderBrandKit();
+      if (applyPanel) applyPanel.style.display = selectedBrandIdx !== null ? 'block' : 'none';
+    });
+
+    const inp = document.createElement('input');
+    inp.type = 'color';
+    inp.value = color;
+    inp.className = 'brand-color-inp';
+    inp.addEventListener('input', () => {
+      state.brandKit.colors[i] = inp.value;
+      sw.style.background = inp.value;
+      if (selectedBrandIdx === i) renderBrandKit();
+      scheduleSave();
+    });
+    sw.addEventListener('dblclick', e => { e.stopPropagation(); inp.click(); });
+
+    wrap.appendChild(sw);
+    wrap.appendChild(inp);
+    grid.appendChild(wrap);
+  });
+
+  // Add-color button (max 12 colors)
+  if (state.brandKit.colors.length < 12) {
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = 'brand-add-btn';
+    addBtn.title = 'Add a color';
+    addBtn.textContent = '+';
+
+    const addInp = document.createElement('input');
+    addInp.type = 'color';
+    addInp.style.display = 'none';
+    addInp.value = '#000000';
+    addInp.addEventListener('change', () => {
+      state.brandKit.colors.push(addInp.value);
+      scheduleSave();
+      renderBrandKit();
+    });
+
+    addBtn.addEventListener('click', () => addInp.click());
+    grid.appendChild(addBtn);
+    grid.appendChild(addInp);
+  }
+
+  if (applyPanel) applyPanel.style.display = selectedBrandIdx !== null ? 'block' : 'none';
+}
+
+document.getElementById('bk-bg').addEventListener('click', () => {
+  if (selectedBrandIdx === null) return;
+  const color = state.brandKit.colors[selectedBrandIdx];
+  const slot = currentSlot();
+  slot.bgType = 'solid';
+  slot.bgColor = color;
+  slot.bgPreset = -1;
+  syncSidebarFromSlot();
+  refreshActiveSlot();
+});
+document.getElementById('bk-text').addEventListener('click', () => {
+  if (selectedBrandIdx === null) return;
+  currentSlot().headlineColor = state.brandKit.colors[selectedBrandIdx];
+  syncSidebarFromSlot();
+  refreshActiveSlot();
+});
+document.getElementById('bk-accent').addEventListener('click', () => {
+  if (selectedBrandIdx === null) return;
+  currentSlot().accentColor = state.brandKit.colors[selectedBrandIdx];
+  syncSidebarFromSlot();
+  refreshActiveSlot();
+});
 
 // ─────────────────────────────────────────────
 //  MEDIA LIBRARY
@@ -2600,7 +2751,7 @@ document.getElementById('sp-icon-file').addEventListener('change', e => {
 // ─────────────────────────────────────────────
 
 const DB_NAME    = 'screenshot-studio-v1';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 let   db         = null;
 let   initialized = false;
 let   saveTimer   = null;
@@ -2618,9 +2769,10 @@ function openDB() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = e => {
       const d = e.target.result;
-      if (!d.objectStoreNames.contains('library'))  d.createObjectStore('library',  { keyPath: 'id' });
-      if (!d.objectStoreNames.contains('meta'))     d.createObjectStore('meta',     { keyPath: 'key' });
-      if (!d.objectStoreNames.contains('projects')) d.createObjectStore('projects', { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('library'))   d.createObjectStore('library',   { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('meta'))      d.createObjectStore('meta',      { keyPath: 'key' });
+      if (!d.objectStoreNames.contains('projects'))  d.createObjectStore('projects',  { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('iconmaker')) d.createObjectStore('iconmaker', { keyPath: 'projectId' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror   = () => reject(req.error);
@@ -2700,7 +2852,7 @@ function buildProjectData() {
       }),
     };
   }
-  return { activeTab: state.activeTab, libSeqNext: libSeq + 1, tabs: tabData, listing: state.listing };
+  return { activeTab: state.activeTab, libSeqNext: libSeq + 1, tabs: tabData, listing: state.listing, brandKit: state.brandKit };
 }
 
 // Reset the in-memory workspace to an empty project
@@ -2715,6 +2867,7 @@ function freshTabs() {
 function resetWorkspace() {
   state.library = [];
   state.listing = defaultListing();
+  state.brandKit = defaultBrandKit();
   state.activeTab = 'apple-iphone';
   state.tabs = freshTabs();
   libSeq = 0;
@@ -2724,6 +2877,7 @@ function resetWorkspace() {
 function applyProjectData(data) {
   libSeq = (data.libSeqNext || 1) - 1;
   if (data.listing) state.listing = { ...defaultListing(), ...data.listing };
+  if (data.brandKit) state.brandKit = { ...defaultBrandKit(), ...data.brandKit };
   if (data.activeTab && state.tabs[data.activeTab]) state.activeTab = data.activeTab;
   for (const [tabKey, saved] of Object.entries(data.tabs || {})) {
     if (!state.tabs[tabKey]) continue;
@@ -2824,6 +2978,8 @@ function renderProjectSelect() {
 }
 
 function applyWorkspaceToUI() {
+  selectedBrandIdx = null;
+  renderBrandKit();
   buildSwatches();
   buildDesigns();
   document.querySelectorAll('.tab-btn').forEach(b => {
