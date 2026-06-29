@@ -964,6 +964,44 @@
           </label>
         </div>
       </div>
+      <div class="field-row">
+        <span class="field-label">Tag Style</span>
+        <select id="txt-tag-style">
+          <option value="pills">Outlined pills</option>
+          <option value="checklist">Checklist (✓)</option>
+        </select>
+      </div>
+      <label class="check-line" style="display:flex;align-items:center;gap:8px;margin-top:8px;font-size:.8rem;cursor:pointer;">
+        <input type="checkbox" id="txt-caption-italic" style="width:15px;height:15px;accent-color:var(--primary);cursor:pointer;"> Italic caption
+      </label>
+    </div>
+
+    <!-- Decorations -->
+    <div class="sidebar-section">
+      <div class="sidebar-heading">Decorations</div>
+      <div class="field-row">
+        <span class="field-label">Logo wordmark</span>
+        <input type="text" id="dec-logo" placeholder="e.g. mealio" maxlength="24">
+      </div>
+      <div class="field-row">
+        <span class="field-label">Logo position</span>
+        <div class="radio-group">
+          <label class="radio-pill"><input type="radio" name="dec-logo-pos" value="top" checked> Top</label>
+          <label class="radio-pill"><input type="radio" name="dec-logo-pos" value="bottom"> Bottom</label>
+        </div>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Rating wreath</span>
+        <input type="text" id="dec-wreath" placeholder="4.8 | rating" maxlength="24">
+      </div>
+      <div class="field-row">
+        <span class="field-label">Corner ribbon</span>
+        <input type="text" id="dec-ribbon" placeholder="e.g. best deals" maxlength="24">
+      </div>
+      <div class="field-row">
+        <span class="field-label">Ribbon color</span>
+        <input type="color" id="dec-ribbon-color" value="#16a34a">
+      </div>
     </div>
 
     <!-- Brand Kit -->
@@ -1119,6 +1157,16 @@ const DESIGNS = [
   // ── Side text ──
   { id:'text-left',   label:'Text Left',  desc:'Text left · device right',  layoutMode:'side-left',   textBand:0.36, devScale:1.00, rotate:4,   headlineScale:1.1,  captionScale:1.0, uppercase:false, textCard:false },
   { id:'text-right',  label:'Text Right', desc:'Device left · text right',  layoutMode:'side-right',  textBand:0.36, devScale:1.00, rotate:-4,  headlineScale:1.1,  captionScale:1.0, uppercase:false, textCard:false },
+  // ── Angled (3D perspective) ──
+  { id:'angle-r',     label:'Angle R',    desc:'3D device tilted right',    layoutMode:'standard',    textBand:0.20, devScale:1.04, rotate:0,   headlineScale:1.05, captionScale:1.0, uppercase:false, textCard:false, mockup:{ kind:'tilt3d', ry:-26, rx:7, rz:5,  scale:1.0 } },
+  { id:'angle-l',     label:'Angle L',    desc:'3D device tilted left',     layoutMode:'standard',    textBand:0.20, devScale:1.04, rotate:0,   headlineScale:1.05, captionScale:1.0, uppercase:false, textCard:false, mockup:{ kind:'tilt3d', ry:26,  rx:7, rz:-5, scale:1.0 } },
+  { id:'angle-hero',  label:'Angle Hero', desc:'Big angled · text on top',  layoutMode:'peek-bottom', textBand:0.26, devScale:1.05, rotate:0,   headlineScale:1.10, captionScale:1.0, uppercase:false, textCard:false, mockup:{ kind:'tilt3d', ry:-20, rx:10, rz:4, scale:1.0 } },
+  // ── Hand-held ──
+  { id:'hand',        label:'In Hand',    desc:'Hand holds the phone',      layoutMode:'standard',    textBand:0.18, devScale:1.00, rotate:0,   headlineScale:1.0,  captionScale:1.0, uppercase:false, textCard:false, mockup:{ kind:'hand', scale:1.02 } },
+  { id:'hand-top',    label:'Hand · Top', desc:'Hand-held · headline top',  layoutMode:'peek-bottom', textBand:0.24, devScale:1.00, rotate:0,   headlineScale:1.08, captionScale:1.0, uppercase:false, textCard:false, mockup:{ kind:'hand', scale:1.0 } },
+  // ── Editorial (big display type) ──
+  { id:'editorial',      label:'Editorial',   desc:'Huge stacked headline',  layoutMode:'peek-bottom', textBand:0.42, devScale:1.05, rotate:0, headlineScale:1.7, captionScale:1.1, uppercase:false, textCard:false, display:true },
+  { id:'editorial-hand', label:'Editorial+Hand', desc:'Big type · hand-held', layoutMode:'peek-bottom', textBand:0.42, devScale:1.00, rotate:0, headlineScale:1.6, captionScale:1.1, uppercase:false, textCard:false, display:true, mockup:{ kind:'hand', scale:0.95 } },
 ];
 
 function getDesign(id) { return DESIGNS.find(d => d.id === id) || DESIGNS[0]; }
@@ -1163,6 +1211,14 @@ function defaultSlot() {
     screenshotFit: 'cover',
     design: 'classic',
     bgPattern: 'none',
+    // Rich typography + decorations
+    tagStyle: 'pills',      // 'pills' | 'checklist'
+    captionItalic: false,
+    ribbon: '',             // corner ribbon text, e.g. "best deals"
+    ribbonColor: '#16a34a',
+    wreathText: '',         // laurel-wreath rating badge, e.g. "4.8 rating"
+    logoText: '',           // small brand wordmark
+    logoPosition: 'top',    // 'top' | 'bottom'
   };
 }
 
@@ -1270,6 +1326,235 @@ function roundRectPath(ctx, x, y, w, h, r) {
   ctx.lineTo(x, y + r);
   ctx.arcTo(x, y, x + r, y, r);
   ctx.closePath();
+}
+
+// ─────────────────────────────────────────────
+//  PERSPECTIVE WARP ENGINE
+//  Maps a flat (upright) device canvas into an arbitrary 4-corner
+//  quad so we can render 3D-angled phones and hand mockups.
+// ─────────────────────────────────────────────
+
+// Homography mapping the unit square (0,0)(1,0)(1,1)(0,1) → dst quad [TL,TR,BR,BL]
+function squareToQuadH(q) {
+  const [x0,y0] = q[0], [x1,y1] = q[1], [x2,y2] = q[2], [x3,y3] = q[3];
+  const dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3;
+  const dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3;
+  let a13, a23;
+  if (Math.abs(dx3) < 1e-9 && Math.abs(dy3) < 1e-9) {
+    a13 = 0; a23 = 0;
+  } else {
+    const det = dx1 * dy2 - dx2 * dy1 || 1e-9;
+    a13 = (dx3 * dy2 - dx2 * dy3) / det;
+    a23 = (dx1 * dy3 - dx3 * dy1) / det;
+  }
+  return {
+    a11: x1 - x0 + a13 * x1, a21: x3 - x0 + a23 * x3, a31: x0,
+    a12: y1 - y0 + a13 * y1, a22: y3 - y0 + a23 * y3, a32: y0,
+    a13, a23, a33: 1,
+  };
+}
+function projH(H, u, v) {
+  const den = H.a13 * u + H.a23 * v + H.a33 || 1e-9;
+  return [ (H.a11 * u + H.a21 * v + H.a31) / den,
+           (H.a12 * u + H.a22 * v + H.a32) / den ];
+}
+
+// Affine-textured triangle (source pixels → dest points)
+function drawTexTriangle(ctx, img, sx0,sy0, sx1,sy1, sx2,sy2, dx0,dy0, dx1,dy1, dx2,dy2) {
+  // expand dest triangle slightly around centroid to hide seams
+  const gx = (dx0 + dx1 + dx2) / 3, gy = (dy0 + dy1 + dy2) / 3, k = 1.012;
+  dx0 = gx + (dx0 - gx) * k; dy0 = gy + (dy0 - gy) * k;
+  dx1 = gx + (dx1 - gx) * k; dy1 = gy + (dy1 - gy) * k;
+  dx2 = gx + (dx2 - gx) * k; dy2 = gy + (dy2 - gy) * k;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(dx0, dy0); ctx.lineTo(dx1, dy1); ctx.lineTo(dx2, dy2); ctx.closePath();
+  ctx.clip();
+
+  const u1 = sx1 - sx0, v1 = sy1 - sy0, u2 = sx2 - sx0, v2 = sy2 - sy0;
+  const det = u1 * v2 - u2 * v1;
+  if (Math.abs(det) > 1e-9) {
+    const a = (v2 * (dx1 - dx0) - v1 * (dx2 - dx0)) / det;
+    const b = (v2 * (dy1 - dy0) - v1 * (dy2 - dy0)) / det;
+    const c = (u1 * (dx2 - dx0) - u2 * (dx1 - dx0)) / det;
+    const d = (u1 * (dy2 - dy0) - u2 * (dy1 - dy0)) / det;
+    const e = dx0 - a * sx0 - c * sy0;
+    const f = dy0 - b * sx0 - d * sy0;
+    ctx.setTransform(a, b, c, d, e, f);
+    ctx.drawImage(img, 0, 0);
+  }
+  ctx.restore();
+}
+
+// Warp a whole image into a dst quad [TL,TR,BR,BL] using an N×N mesh
+function drawImageQuad(ctx, img, quad, N) {
+  N = N || 28;
+  const iw = img.width, ih = img.height;
+  const H = squareToQuadH(quad);
+  for (let i = 0; i < N; i++) {
+    for (let j = 0; j < N; j++) {
+      const u0 = i / N, u1 = (i + 1) / N, v0 = j / N, v1 = (j + 1) / N;
+      const p00 = projH(H, u0, v0), p10 = projH(H, u1, v0);
+      const p11 = projH(H, u1, v1), p01 = projH(H, u0, v1);
+      const sx0 = u0 * iw, sx1 = u1 * iw, sy0 = v0 * ih, sy1 = v1 * ih;
+      drawTexTriangle(ctx, img, sx0,sy0, sx1,sy0, sx1,sy1, p00[0],p00[1], p10[0],p10[1], p11[0],p11[1]);
+      drawTexTriangle(ctx, img, sx0,sy0, sx1,sy1, sx0,sy1, p00[0],p00[1], p11[0],p11[1], p01[0],p01[1]);
+    }
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+}
+
+function quadPath(ctx, q) {
+  ctx.beginPath();
+  ctx.moveTo(q[0][0], q[0][1]);
+  ctx.lineTo(q[1][0], q[1][1]);
+  ctx.lineTo(q[2][0], q[2][1]);
+  ctx.lineTo(q[3][0], q[3][1]);
+  ctx.closePath();
+}
+
+// Render the upright device frame + screenshot to an offscreen canvas
+function renderFlatDevice(slot, frameType, w, h) {
+  const c = document.createElement('canvas');
+  c.width  = Math.max(2, Math.round(w));
+  c.height = Math.max(2, Math.round(h));
+  const cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = true;
+  cx.imageSmoothingQuality = 'high';
+  let screenRect;
+  if (slot.frameStyle === 'none') {
+    const sr = c.width * 0.04;
+    screenRect = { x: 0, y: 0, w: c.width, h: c.height, r: sr };
+  } else {
+    screenRect = drawDeviceFrame(cx, 0, 0, c.width, c.height, frameType);
+  }
+  if (slot.screenshot) {
+    cx.save();
+    roundRectPath(cx, screenRect.x, screenRect.y, screenRect.w, screenRect.h, screenRect.r);
+    cx.clip();
+    drawFittedImage(cx, slot.screenshot, screenRect.x, screenRect.y, screenRect.w, screenRect.h, slot.screenshotFit);
+    cx.restore();
+  }
+  return c;
+}
+
+// Project a centered flat rect (W×H) through a 3D rotation → screen quad
+function tilt3dQuad(W, H, cx, cy, ryDeg, rxDeg, rzDeg) {
+  const f = Math.max(W, H) * 2.4;
+  const ay = (ryDeg||0) * Math.PI/180, ax = (rxDeg||0) * Math.PI/180, az = (rzDeg||0) * Math.PI/180;
+  const corners = [[-W/2,-H/2],[W/2,-H/2],[W/2,H/2],[-W/2,H/2]];
+  return corners.map(([x, y]) => {
+    let z = 0;
+    let X = x * Math.cos(ay) + z * Math.sin(ay);
+    let Z = -x * Math.sin(ay) + z * Math.cos(ay);
+    let Y = y;
+    const Y2 = Y * Math.cos(ax) - Z * Math.sin(ax);
+    const Z2 = Y * Math.sin(ax) + Z * Math.cos(ax);
+    const X3 = X * Math.cos(az) - Y2 * Math.sin(az);
+    const Y3 = X * Math.sin(az) + Y2 * Math.cos(az);
+    const s = f / (f + Z2);
+    return [cx + X3 * s, cy + Y3 * s];
+  });
+}
+
+// ── Hand mockup SVG assets (self-authored, license-clean) ──
+// viewBox 1000×1500. screenQuad = phone screen corners TL,TR,BR,BL in that space.
+const HAND_SKIN = '#e7b18c', HAND_SKIN_D = '#cf9268', HAND_SKIN_L = '#f0c4a3';
+const HAND_DEF = {
+  vb: [1000, 1500],
+  screenQuad: [[352,232],[706,205],[742,1126],[392,1180]],
+  back: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 1500'>
+    <g>
+      <path d='M250 1500 L250 1150 Q250 980 430 940 L640 905 Q780 885 800 1010 L840 1320 L840 1500 Z' fill='${HAND_SKIN}'/>
+      <path d='M250 1500 L250 1150 Q250 980 430 940 L520 925 L520 1500 Z' fill='${HAND_SKIN_D}' opacity='.35'/>
+      <g fill='${HAND_SKIN}' stroke='${HAND_SKIN_D}' stroke-width='4'>
+        <rect x='690' y='250' width='95' height='240' rx='47'/>
+        <rect x='700' y='430' width='100' height='250' rx='50'/>
+        <rect x='705' y='640' width='100' height='250' rx='50'/>
+        <rect x='700' y='850' width='100' height='220' rx='50'/>
+      </g>
+    </g>
+  </svg>`,
+  front: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 1500'>
+    <g>
+      <path d='M250 1230 Q300 1060 470 1040 L700 1020 Q800 1014 805 1090 Q808 1150 720 1162 L470 1196 Q360 1210 340 1300 Z' fill='${HAND_SKIN_L}'/>
+      <path d='M250 1230 Q300 1060 470 1040 L560 1032 L520 1240 Z' fill='${HAND_SKIN}' opacity='.5'/>
+      <ellipse cx='770' cy='1086' rx='46' ry='40' fill='${HAND_SKIN_L}' stroke='${HAND_SKIN_D}' stroke-width='3'/>
+    </g>
+  </svg>`,
+};
+
+const HAND_CACHE = {};   // name → { back:Image, front:Image, ready:bool }
+function svgToImg(svg) {
+  const img = new Image();
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  return img;
+}
+function loadHandAssets() {
+  const h = { back: svgToImg(HAND_DEF.back), front: svgToImg(HAND_DEF.front), ready: false };
+  let n = 0;
+  const done = () => { if (++n >= 2) { h.ready = true; if (typeof refreshAllSlots === 'function') refreshAllSlots(); } };
+  h.back.onload = done; h.front.onload = done;
+  h.back.onerror = done; h.front.onerror = done;
+  HAND_CACHE.hand = h;
+}
+
+// Draw a mockup (3D-angled device or hand) centered at (cx,cy) within a box (boxW×boxH)
+function drawMockup(ctx, slot, frameType, mockup, cx, cy, boxW, boxH, aspect) {
+  // Flat device dimensions matching store aspect, fit inside the box
+  let dW = boxW, dH = dW / aspect;
+  if (dH > boxH) { dH = boxH; dW = dH * aspect; }
+
+  if (mockup.kind === 'tilt3d') {
+    dW *= (mockup.scale || 1); dH *= (mockup.scale || 1);
+    const flat = renderFlatDevice(slot, frameType, dW * 1.6, (dW * 1.6) / aspect);
+    const quad = tilt3dQuad(dW, dH, cx, cy, mockup.ry, mockup.rx, mockup.rz);
+    // drop shadow behind the quad
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = dW * 0.07;
+    ctx.shadowOffsetY = dW * 0.035;
+    quadPath(ctx, quad);
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fill();
+    ctx.restore();
+    drawImageQuad(ctx, flat, quad);
+    return;
+  }
+
+  if (mockup.kind === 'hand') {
+    const asset = HAND_CACHE.hand;
+    const def = HAND_DEF;
+    // Scale the hand art so its height ≈ box height; place centered
+    const artScale = (boxH * (mockup.scale || 1.0)) / def.vb[1];
+    const artW = def.vb[0] * artScale, artH = def.vb[1] * artScale;
+    const ox = cx - artW / 2, oy = cy - artH / 2;
+    const map = p => [ox + p[0] * artScale, oy + p[1] * artScale];
+    const quad = def.screenQuad.map(map);
+
+    if (!asset || !asset.ready) {
+      // Fallback: simple tilted device until the SVG finishes loading
+      const q2 = tilt3dQuad(dW, dH, cx, cy, -10, 4, -6);
+      const flat = renderFlatDevice(slot, frameType, dW * 1.6, (dW * 1.6) / aspect);
+      drawImageQuad(ctx, flat, q2);
+      return;
+    }
+    // Back of hand first (palm + fingers behind phone)
+    ctx.drawImage(asset.back, ox, oy, artW, artH);
+    // Device shadow + screenshot warped into the screen quad
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = artW * 0.04;
+    ctx.shadowOffsetY = artW * 0.02;
+    quadPath(ctx, quad); ctx.fillStyle = '#0a0a0a'; ctx.fill();
+    ctx.restore();
+    const flat = renderFlatDevice(slot, frameType, dW * 1.6, (dW * 1.6) / aspect);
+    drawImageQuad(ctx, flat, quad);
+    // Thumb in front
+    ctx.drawImage(asset.front, ox, oy, artW, artH);
+    return;
+  }
 }
 
 function drawDeviceFrame(ctx, fx, fy, fw, fh, frameType) {
@@ -1463,41 +1748,50 @@ function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH, design
   const captionSize  = Math.min(canvasH * 0.026, isSide ? tbW * 0.16 : Infinity) * design.captionScale;
   const pillFont     = Math.min(canvasH * 0.020, isSide ? tbW * 0.12 : Infinity);
 
-  const maxW = tbW * 0.88;
-  // Side layouts: left-align from inner edge; centred otherwise
+  // "display" designs (editorial big stacked headlines) left-align & wrap like side columns
+  const leftAlign = isSide || !!design.display;
+  const wrapAll   = isSide || !!design.display;
+  const maxW = leftAlign ? tbW * 0.90 : tbW * 0.88;
   const isLeft  = isSide && tbX < canvasW * 0.3;  // left text strip
   const isRight = isSide && !isLeft;               // right text strip
-  const alignX  = isLeft  ? tbX + tbW * 0.10
-                : isRight ? tbX + tbW * 0.10
+  const alignX  = isSide  ? tbX + tbW * 0.10
+                : design.display ? tbX + tbW * 0.07
                 : tbX + tbW / 2;
-  const textAlign = isSide ? 'left' : 'center';
+  const textAlign = leftAlign ? 'left' : 'center';
+  const tightLead = design.display ? 0.98 : 1.12;   // display designs hug lines together
 
   let headline = slot.headline || '';
   let accent   = slot.headlineAccent || '';
   if (design.uppercase) { headline = headline.toUpperCase(); accent = accent.toUpperCase(); }
   const caption = slot.caption || '';
   const tags = parseTags(slot.tags);
+  const isChecklist = slot.tagStyle === 'checklist';
+  const checkSize = Math.min(canvasH * 0.030, isSide ? tbW * 0.16 : tbW * 0.085) * (design.captionScale || 1);
   const gap = canvasH * (isSide ? 0.008 : 0.011);
 
   // Build element list with word-wrapped lines
   const els = [];
   if (headline) {
-    ctx.font = `700 ${headlineSize}px ${fontFamily}`;
-    const lines = isSide ? wrapLines(ctx, headline, maxW) : [headline];
-    els.push({ type:'headline', lines, lineH: headlineSize * 1.12 });
+    ctx.font = `800 ${headlineSize}px ${fontFamily}`;
+    const lines = wrapAll ? wrapLines(ctx, headline, maxW) : [headline];
+    els.push({ type:'headline', lines, lineH: headlineSize * tightLead });
   }
   if (accent) {
     ctx.font = `800 ${accentSize}px ${fontFamily}`;
-    const lines = isSide ? wrapLines(ctx, accent, maxW) : [accent];
-    els.push({ type:'accent', lines, lineH: accentSize * 1.12 });
+    const lines = wrapAll ? wrapLines(ctx, accent, maxW) : [accent];
+    els.push({ type:'accent', lines, lineH: accentSize * tightLead });
   }
   if (caption) {
-    ctx.font = `400 ${captionSize}px ${fontFamily}`;
-    const lines = isSide ? wrapLines(ctx, caption, maxW) : [caption];
+    ctx.font = `${slot.captionItalic ? 'italic ' : ''}400 ${captionSize}px ${fontFamily}`;
+    const lines = wrapAll ? wrapLines(ctx, caption, maxW) : [caption];
     els.push({ type:'caption', lines, lineH: captionSize * 1.20 });
   }
-  if (tags.length) {
-    els.push({ type:'tags', lines: [], lineH: pillFont * 2.2 });
+  if (tags.length && isChecklist) {
+    els.push({ type:'checklist', lines: tags, lineH: checkSize * 1.5 });
+  } else if (tags.length) {
+    ctx.font = `700 ${pillFont}px ${fontFamily}`;
+    const rows = layoutPillRows(ctx, tags, maxW, pillFont);
+    els.push({ type:'tags', lines: [], rows, lineH: rows.rowH * rows.count + pillFont * 0.6 });
   }
 
   const totalH = els.reduce((s, e) => s + e.lineH * (e.lines.length || 1), 0)
@@ -1529,7 +1823,7 @@ function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH, design
 
     if (el.type === 'headline') {
       ctx.save();
-      ctx.font = `700 ${headlineSize}px ${fontFamily}`;
+      ctx.font = `${design.display ? 900 : 700} ${headlineSize}px ${fontFamily}`;
       ctx.fillStyle = slot.headlineColor;
       ctx.shadowColor = 'rgba(0,0,0,0.32)';
       ctx.shadowBlur  = headlineSize * 0.28;
@@ -1555,7 +1849,7 @@ function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH, design
 
     } else if (el.type === 'caption') {
       ctx.save();
-      ctx.font = `400 ${captionSize}px ${fontFamily}`;
+      ctx.font = `${slot.captionItalic ? 'italic ' : ''}400 ${captionSize}px ${fontFamily}`;
       ctx.fillStyle = slot.headlineColor;
       ctx.globalAlpha = 0.82;
       ctx.shadowColor = 'rgba(0,0,0,0.2)';
@@ -1566,10 +1860,39 @@ function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH, design
       }
       ctx.restore();
 
+    } else if (el.type === 'checklist') {
+      ctx.save();
+      ctx.font = `700 ${checkSize}px ${fontFamily}`;
+      ctx.textAlign = leftAlign ? 'left' : 'center';
+      ctx.shadowColor = 'rgba(0,0,0,0.22)';
+      ctx.shadowBlur  = checkSize * 0.25;
+      const accentCol = slot.accentColor || '#fde047';
+      for (const item of el.lines) {
+        const cy2 = ey + el.lineH / 2;
+        if (leftAlign) {
+          ctx.fillStyle = accentCol;
+          ctx.fillText('✓', alignX, cy2);
+          const cw = ctx.measureText('✓ ').width;
+          ctx.fillStyle = slot.headlineColor;
+          ctx.fillText(item, alignX + cw, cy2);
+        } else {
+          ctx.fillStyle = slot.headlineColor;
+          const tw = ctx.measureText(item).width;
+          const cw = ctx.measureText('✓ ').width;
+          const startX = alignX - (tw + cw) / 2;
+          ctx.fillStyle = accentCol;
+          ctx.fillText('✓', startX, cy2);
+          ctx.fillStyle = slot.headlineColor;
+          ctx.fillText(' ' + item, startX + ctx.measureText('✓').width, cy2);
+        }
+        ey += el.lineH;
+      }
+      ctx.restore();
+      ctx.textAlign = textAlign;
+
     } else if (el.type === 'tags') {
-      // Pills centred within the text band (even in side layouts)
-      const pillCX = isSide ? tbX + tbW / 2 : alignX;
-      drawTagPills(ctx, tags, pillCX, ey + el.lineH / 2, pillFont, slot, maxW, fontFamily);
+      const pillCX = isSide ? tbX + tbW / 2 : alignX + (leftAlign ? 0 : 0);
+      drawTagPillRows(ctx, el.rows, leftAlign ? (tbX + tbW * 0.07) : (tbX + tbW / 2), ey, pillFont, slot, fontFamily, leftAlign);
       ey += el.lineH;
     }
 
@@ -1577,39 +1900,158 @@ function drawTextOverlay(ctx, slot, tbX, tbY, tbW, tbH, canvasW, canvasH, design
   }
 }
 
-function drawTagPills(ctx, tags, cx, midY, pillFont, slot, maxW, fontFamily) {
+// Lay out pills into rows that fit maxW; returns { rows:[[{t,w}]], rowH, count, gap, pillH }
+function layoutPillRows(ctx, tags, maxW, pillFont) {
+  ctx.font = `700 ${pillFont}px -apple-system, sans-serif`;
+  const padX = pillFont * 0.85;
+  const padY = pillFont * 0.50;
+  const gap  = pillFont * 0.45;
+  const pillH = pillFont + padY * 2;
+  const rowH = pillH + gap;
+  const rows = [];
+  let row = [], rowW = 0;
+  for (const t of tags) {
+    const w = Math.min(maxW, ctx.measureText(t).width + padX * 2);
+    if (row.length && rowW + gap + w > maxW) { rows.push(row); row = []; rowW = 0; }
+    row.push({ t, w });
+    rowW += (row.length > 1 ? gap : 0) + w;
+  }
+  if (row.length) rows.push(row);
+  return { rows, rowH, count: rows.length, gap, pillH, padX };
+}
+
+// Draw outlined pill rows. anchorX is left edge (leftAlign) or center.
+function drawTagPillRows(ctx, layout, anchorX, topY, pillFont, slot, fontFamily, leftAlign) {
   ctx.save();
   ctx.font = `700 ${pillFont}px ${fontFamily}`;
-  const padX = pillFont * 0.85;
-  const padY = pillFont * 0.55;
-  const gap  = pillFont * 0.55;
-  const pillH = pillFont + padY * 2;
-
-  // Measure
-  const widths = tags.map(t => ctx.measureText(t).width + padX * 2);
-  let totalW = widths.reduce((s, w) => s + w, 0) + gap * (tags.length - 1);
-
-  // Shrink to fit maxW
-  let scale = 1;
-  if (totalW > maxW) scale = maxW / totalW;
-
-  ctx.save();
-  ctx.translate(cx, midY);
-  ctx.scale(scale, scale);
-  let x = -totalW / 2;
-  for (let i = 0; i < tags.length; i++) {
-    const w = widths[i];
-    roundRectPath(ctx, x, -pillH / 2, w, pillH, pillH / 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.95)';
-    ctx.fill();
-    ctx.fillStyle = '#1e293b';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = `700 ${pillFont}px ${fontFamily}`;
-    ctx.fillText(tags[i], x + w / 2, 0);
-    x += w + gap;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+  const border = slot.headlineColor || '#ffffff';
+  const { rows, rowH, gap, pillH } = layout;
+  let y = topY + pillH / 2;
+  for (const row of rows) {
+    const rowW = row.reduce((s, p) => s + p.w, 0) + gap * (row.length - 1);
+    let x = leftAlign ? anchorX : anchorX - rowW / 2;
+    for (const p of row) {
+      roundRectPath(ctx, x, y - pillH / 2, p.w, pillH, pillH / 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.10)';
+      ctx.fill();
+      ctx.lineWidth = Math.max(1, pillFont * 0.07);
+      ctx.strokeStyle = border;
+      ctx.globalAlpha = 0.9;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = border;
+      ctx.fillText(p.t, x + p.w / 2, y, p.w - pillFont * 1.2);
+      x += p.w + gap;
+    }
+    y += rowH;
   }
   ctx.restore();
+}
+
+// ─────────────────────────────────────────────
+//  DECORATIONS (ribbon badge · rating wreath · logo)
+// ─────────────────────────────────────────────
+
+function drawDecorations(ctx, slot, W, H, design) {
+  const fontFamily = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
+  // ── Logo wordmark ──
+  if (slot.logoText) {
+    ctx.save();
+    const fs = H * 0.026;
+    ctx.font = `800 ${fs}px ${fontFamily}`;
+    ctx.fillStyle = slot.headlineColor || '#fff';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.shadowColor = 'rgba(0,0,0,0.25)';
+    ctx.shadowBlur = fs * 0.3;
+    const tw = ctx.measureText(slot.logoText).width;
+    const padX = fs * 0.7, padY = fs * 0.45;
+    const bx = W * 0.07, by = slot.logoPosition === 'bottom' ? H - H * 0.06 - (fs + padY * 2) : H * 0.06;
+    roundRectPath(ctx, bx, by, tw + padX * 2, fs + padY * 2, (fs + padY * 2) / 2);
+    ctx.fillStyle = slot.accentColor || '#16a34a';
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(slot.logoText, bx + padX, by + (fs + padY * 2) / 2);
+    ctx.restore();
+  }
+
+  // ── Rating wreath (laurels around centered text) ──
+  if (slot.wreathText) {
+    ctx.save();
+    const cx = W / 2, cy = H * 0.12;
+    const col = slot.headlineColor || '#1f513f';
+    const lines = slot.wreathText.split(/\s*\|\s*|\n/).slice(0, 2);
+    const fs = H * 0.034;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = col;
+    ctx.font = `800 ${fs * 1.25}px ${fontFamily}`;
+    ctx.fillText(lines[0] || '', cx, cy - (lines.length > 1 ? fs * 0.55 : 0));
+    if (lines[1]) {
+      ctx.font = `600 ${fs * 0.7}px ${fontFamily}`;
+      ctx.fillText(lines[1], cx, cy + fs * 0.55);
+    }
+    // stars under text
+    ctx.font = `${fs * 0.55}px ${fontFamily}`;
+    ctx.fillText('★ ★ ★ ★ ★', cx, cy + fs * 1.15);
+    // laurel branches
+    drawLaurel(ctx, cx - W * 0.13, cy + fs * 0.1, H * 0.085, col, false);
+    drawLaurel(ctx, cx + W * 0.13, cy + fs * 0.1, H * 0.085, col, true);
+    ctx.restore();
+  }
+
+  // ── Corner ribbon badge ──
+  if (slot.ribbon) {
+    ctx.save();
+    const r = W * 0.17;
+    const cx = W - r * 0.62, cy = H * 0.10;
+    ctx.translate(cx, cy);
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = slot.ribbonColor || '#16a34a';
+    ctx.shadowColor = 'rgba(0,0,0,0.25)';
+    ctx.shadowBlur = r * 0.12;
+    ctx.shadowOffsetY = r * 0.04;
+    ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.rotate(Math.PI / 12);
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const words = slot.ribbon.split(/\s+/).slice(0, 3);
+    const fs = r * 0.30;
+    ctx.font = `800 ${fs}px ${fontFamily}`;
+    const startY = -((words.length - 1) * fs * 1.05) / 2;
+    words.forEach((w, i) => ctx.fillText(w.toUpperCase(), 0, startY + i * fs * 1.05));
+    ctx.restore();
+  }
+}
+
+// A laurel branch: a series of leaves along a curved arc. mirror flips horizontally.
+function drawLaurel(ctx, x, y, h, color, mirror) {
+  ctx.save();
+  ctx.translate(x, y);
+  if (mirror) ctx.scale(-1, 1);
+  ctx.fillStyle = color;
+  const leaves = 6;
+  for (let i = 0; i < leaves; i++) {
+    const t = i / (leaves - 1);
+    const ang = -Math.PI * 0.62 + t * Math.PI * 0.5;   // sweep up and around
+    const rad = h * (0.95 - t * 0.15);
+    const lx = Math.cos(ang) * rad * 0.5;
+    const ly = Math.sin(ang) * rad;
+    ctx.save();
+    ctx.translate(lx, ly);
+    ctx.rotate(ang + Math.PI / 2);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, h * 0.07, h * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
   ctx.restore();
 }
 
@@ -1696,42 +2138,49 @@ function renderSlot(slot, storeKey, targetW, targetH) {
     cy = deviceAreaY + deviceAreaH / 2;
   }
 
-  // 3-4. Draw frame + screenshot inside a centered (optionally rotated) transform
+  // 3-4. Draw the device — either a mockup (3D-angled / hand) or the flat frame
   const cfg = STORE_CONFIGS[storeKey];
-  ctx.save();
-  ctx.translate(cx, cy);
-  if (design.rotate) ctx.rotate(design.rotate * Math.PI / 180);
-
-  const fx = -dfW / 2, fy = -dfH / 2;
-  let screenRect;
-  if (slot.frameStyle === 'device') {
-    screenRect = drawDeviceFrame(ctx, fx, fy, dfW, dfH, cfg.frame);
-  } else if (slot.frameStyle === 'shadow') {
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur  = dfW * 0.06;
-    ctx.shadowOffsetY = dfW * 0.02;
-    const sr2 = dfW * 0.04;
-    roundRectPath(ctx, fx, fy, dfW, dfH, sr2);
-    ctx.fillStyle = 'rgba(0,0,0,0.01)';
-    ctx.fill();
-    ctx.restore();
-    screenRect = { x: fx, y: fy, w: dfW, h: dfH, r: sr2 };
+  if (design.mockup) {
+    drawMockup(ctx, slot, cfg.frame, design.mockup, cx, cy, dfW, dfH, aspect);
   } else {
-    screenRect = { x: fx, y: fy, w: dfW, h: dfH, r: 0 };
-  }
-
-  if (slot.screenshot) {
     ctx.save();
-    roundRectPath(ctx, screenRect.x, screenRect.y, screenRect.w, screenRect.h, screenRect.r);
-    ctx.clip();
-    drawFittedImage(ctx, slot.screenshot, screenRect.x, screenRect.y, screenRect.w, screenRect.h, slot.screenshotFit);
+    ctx.translate(cx, cy);
+    if (design.rotate) ctx.rotate(design.rotate * Math.PI / 180);
+
+    const fx = -dfW / 2, fy = -dfH / 2;
+    let screenRect;
+    if (slot.frameStyle === 'device') {
+      screenRect = drawDeviceFrame(ctx, fx, fy, dfW, dfH, cfg.frame);
+    } else if (slot.frameStyle === 'shadow') {
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.5)';
+      ctx.shadowBlur  = dfW * 0.06;
+      ctx.shadowOffsetY = dfW * 0.02;
+      const sr2 = dfW * 0.04;
+      roundRectPath(ctx, fx, fy, dfW, dfH, sr2);
+      ctx.fillStyle = 'rgba(0,0,0,0.01)';
+      ctx.fill();
+      ctx.restore();
+      screenRect = { x: fx, y: fy, w: dfW, h: dfH, r: sr2 };
+    } else {
+      screenRect = { x: fx, y: fy, w: dfW, h: dfH, r: 0 };
+    }
+
+    if (slot.screenshot) {
+      ctx.save();
+      roundRectPath(ctx, screenRect.x, screenRect.y, screenRect.w, screenRect.h, screenRect.r);
+      ctx.clip();
+      drawFittedImage(ctx, slot.screenshot, screenRect.x, screenRect.y, screenRect.w, screenRect.h, slot.screenshotFit);
+      ctx.restore();
+    }
     ctx.restore();
   }
-  ctx.restore();
 
   // 5. Text overlay
   drawTextOverlay(ctx, slot, textArea.x, textArea.y, textArea.w, textArea.h, targetW, targetH, design);
+
+  // 6. Decorations (ribbon / wreath / logo)
+  drawDecorations(ctx, slot, targetW, targetH, design);
 
   return canvas;
 }
@@ -1796,6 +2245,13 @@ function syncSidebarFromSlot() {
   document.querySelectorAll('input[name="txt-pos"]').forEach(r => { r.checked = r.value === slot.textPosition; });
   document.getElementById('frame-style').value  = slot.frameStyle;
   document.getElementById('screenshot-fit').value = slot.screenshotFit;
+  document.getElementById('txt-tag-style').value = slot.tagStyle || 'pills';
+  document.getElementById('txt-caption-italic').checked = !!slot.captionItalic;
+  document.getElementById('dec-logo').value    = slot.logoText || '';
+  document.querySelectorAll('input[name="dec-logo-pos"]').forEach(r => { r.checked = r.value === (slot.logoPosition || 'top'); });
+  document.getElementById('dec-wreath').value  = slot.wreathText || '';
+  document.getElementById('dec-ribbon').value  = slot.ribbon || '';
+  document.getElementById('dec-ribbon-color').value = slot.ribbonColor || '#16a34a';
 
   buildSwatches();
   buildDesigns();
@@ -2147,6 +2603,11 @@ function refreshActiveSlot() {
   renderSlotsUI();
 }
 
+// Re-render every slot card (used when async assets like hand mockups finish loading)
+function refreshAllSlots() {
+  if (typeof renderSlotsUI === 'function') renderSlotsUI();
+}
+
 // ─────────────────────────────────────────────
 //  UPLOAD HANDLING
 // ─────────────────────────────────────────────
@@ -2212,24 +2673,32 @@ function onSlotChange() {
   slot.textPosition  = document.querySelector('input[name="txt-pos"]:checked').value;
   slot.frameStyle    = document.getElementById('frame-style').value;
   slot.screenshotFit = document.getElementById('screenshot-fit').value;
+  slot.tagStyle      = document.getElementById('txt-tag-style').value;
+  slot.captionItalic = document.getElementById('txt-caption-italic').checked;
+  slot.logoText      = document.getElementById('dec-logo').value;
+  slot.logoPosition  = document.querySelector('input[name="dec-logo-pos"]:checked').value;
+  slot.wreathText    = document.getElementById('dec-wreath').value;
+  slot.ribbon        = document.getElementById('dec-ribbon').value;
+  slot.ribbonColor   = document.getElementById('dec-ribbon-color').value;
   // Reset preset selection if color changed
   slot.bgPreset = -1;
   buildSwatches();
   refreshActiveSlot();
 }
 
-['bg-color1','bg-color2','txt-color','txt-accent-color'].forEach(id => {
+['bg-color1','bg-color2','txt-color','txt-accent-color','dec-ribbon-color'].forEach(id => {
   document.getElementById(id).addEventListener('input', onSlotChange);
 });
-document.querySelectorAll('input[name="bg-type"], input[name="txt-pos"]').forEach(r => {
+document.querySelectorAll('input[name="bg-type"], input[name="txt-pos"], input[name="dec-logo-pos"]').forEach(r => {
   r.addEventListener('change', onSlotChange);
 });
-['txt-headline','txt-accent','txt-caption','txt-tags'].forEach(id => {
+['txt-headline','txt-accent','txt-caption','txt-tags','dec-logo','dec-wreath','dec-ribbon'].forEach(id => {
   document.getElementById(id).addEventListener('input', onSlotChange);
 });
-['frame-style','screenshot-fit','bg-pattern'].forEach(id => {
+['frame-style','screenshot-fit','bg-pattern','txt-tag-style'].forEach(id => {
   document.getElementById(id).addEventListener('change', onSlotChange);
 });
+document.getElementById('txt-caption-italic').addEventListener('change', onSlotChange);
 
 document.getElementById('bg-apply-all').addEventListener('click', () => {
   const src = currentSlot();
@@ -3120,6 +3589,7 @@ async function init() {
   }
   initialized = true;
   applyWorkspaceToUI();
+  loadHandAssets();
 }
 
 init();
