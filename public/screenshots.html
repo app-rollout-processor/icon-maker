@@ -1458,50 +1458,36 @@ function tilt3dQuad(W, H, cx, cy, ryDeg, rxDeg, rzDeg) {
   });
 }
 
-// ── Hand mockup SVG assets (self-authored, license-clean) ──
-// viewBox 1000×1500. screenQuad = phone screen corners TL,TR,BR,BL in that space.
-const HAND_SKIN = '#e7b18c', HAND_SKIN_D = '#cf9268', HAND_SKIN_L = '#f0c4a3';
+// ── Hand mockup photo asset ──
+// A single PNG/WebP of a hand holding a phone with a TRANSPARENT screen cutout.
+// screenQuad = the screen-hole corners TL,TR,BR,BL in the image's pixel space.
+// To swap in your own mockup: drop the file in public/assets/mockups/, set src,
+// vb (natural width,height) and screenQuad (corner pixels).
 const HAND_DEF = {
-  vb: [1000, 1500],
-  screenQuad: [[352,232],[706,205],[742,1126],[392,1180]],
-  back: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 1500'>
-    <g>
-      <path d='M250 1500 L250 1150 Q250 980 430 940 L640 905 Q780 885 800 1010 L840 1320 L840 1500 Z' fill='${HAND_SKIN}'/>
-      <path d='M250 1500 L250 1150 Q250 980 430 940 L520 925 L520 1500 Z' fill='${HAND_SKIN_D}' opacity='.35'/>
-      <g fill='${HAND_SKIN}' stroke='${HAND_SKIN_D}' stroke-width='4'>
-        <rect x='690' y='250' width='95' height='240' rx='47'/>
-        <rect x='700' y='430' width='100' height='250' rx='50'/>
-        <rect x='705' y='640' width='100' height='250' rx='50'/>
-        <rect x='700' y='850' width='100' height='220' rx='50'/>
-      </g>
-    </g>
-  </svg>`,
-  front: `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 1500'>
-    <g>
-      <path d='M250 1230 Q300 1060 470 1040 L700 1020 Q800 1014 805 1090 Q808 1150 720 1162 L470 1196 Q360 1210 340 1300 Z' fill='${HAND_SKIN_L}'/>
-      <path d='M250 1230 Q300 1060 470 1040 L560 1032 L520 1240 Z' fill='${HAND_SKIN}' opacity='.5'/>
-      <ellipse cx='770' cy='1086' rx='46' ry='40' fill='${HAND_SKIN_L}' stroke='${HAND_SKIN_D}' stroke-width='3'/>
-    </g>
-  </svg>`,
+  src: 'assets/mockups/hand.webp',
+  vb: [1707, 2000],
+  screenQuad: [[1054,464],[1560,542],[1234,1748],[692,1614]],
 };
 
-const HAND_CACHE = {};   // name → { back:Image, front:Image, ready:bool }
-function svgToImg(svg) {
-  const img = new Image();
-  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-  return img;
-}
+const HAND_CACHE = {};   // name → { img:Image, ready:bool }
 function loadHandAssets() {
-  const h = { back: svgToImg(HAND_DEF.back), front: svgToImg(HAND_DEF.front), ready: false };
-  let n = 0;
-  const done = () => { if (++n >= 2) { h.ready = true; if (typeof refreshAllSlots === 'function') refreshAllSlots(); } };
-  h.back.onload = done; h.front.onload = done;
-  h.back.onerror = done; h.front.onerror = done;
+  const h = { img: new Image(), ready: false };
+  h.img.onload  = () => { h.ready = true; if (typeof refreshAllSlots === 'function') refreshAllSlots(); };
+  h.img.onerror = () => { h.ready = false; };
+  h.img.src = HAND_DEF.src;
   HAND_CACHE.hand = h;
 }
 
-// Draw a mockup (3D-angled device or hand) centered at (cx,cy) within a box (boxW×boxH)
-function drawMockup(ctx, slot, frameType, mockup, cx, cy, boxW, boxH, aspect) {
+// Aspect (w/h) of a screen quad, from averaged edge lengths
+function quadAspect(q) {
+  const len = (a, b) => Math.hypot(b[0]-a[0], b[1]-a[1]);
+  const w = (len(q[0], q[1]) + len(q[3], q[2])) / 2;
+  const h = (len(q[0], q[3]) + len(q[1], q[2])) / 2;
+  return w / h;
+}
+
+// Draw a mockup (3D-angled device or hand) centered at (cx,cy)
+function drawMockup(ctx, slot, frameType, mockup, cx, cy, boxW, boxH, aspect, canvasW, canvasH) {
   // Flat device dimensions matching store aspect, fit inside the box
   let dW = boxW, dH = dW / aspect;
   if (dH > boxH) { dH = boxH; dW = dH * aspect; }
@@ -1510,7 +1496,6 @@ function drawMockup(ctx, slot, frameType, mockup, cx, cy, boxW, boxH, aspect) {
     dW *= (mockup.scale || 1); dH *= (mockup.scale || 1);
     const flat = renderFlatDevice(slot, frameType, dW * 1.6, (dW * 1.6) / aspect);
     const quad = tilt3dQuad(dW, dH, cx, cy, mockup.ry, mockup.rx, mockup.rz);
-    // drop shadow behind the quad
     ctx.save();
     ctx.shadowColor = 'rgba(0,0,0,0.4)';
     ctx.shadowBlur = dW * 0.07;
@@ -1525,34 +1510,37 @@ function drawMockup(ctx, slot, frameType, mockup, cx, cy, boxW, boxH, aspect) {
 
   if (mockup.kind === 'hand') {
     const asset = HAND_CACHE.hand;
-    const def = HAND_DEF;
-    // Scale the hand art so its height ≈ box height; place centered
-    const artScale = (boxH * (mockup.scale || 1.0)) / def.vb[1];
-    const artW = def.vb[0] * artScale, artH = def.vb[1] * artScale;
-    const ox = cx - artW / 2, oy = cy - artH / 2;
-    const map = p => [ox + p[0] * artScale, oy + p[1] * artScale];
-    const quad = def.screenQuad.map(map);
-
     if (!asset || !asset.ready) {
-      // Fallback: simple tilted device until the SVG finishes loading
+      // Fallback: tilted device until the photo finishes loading (or if it's missing)
       const q2 = tilt3dQuad(dW, dH, cx, cy, -10, 4, -6);
       const flat = renderFlatDevice(slot, frameType, dW * 1.6, (dW * 1.6) / aspect);
       drawImageQuad(ctx, flat, q2);
       return;
     }
-    // Back of hand first (palm + fingers behind phone)
-    ctx.drawImage(asset.back, ox, oy, artW, artH);
-    // Device shadow + screenshot warped into the screen quad
-    ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,0.35)';
-    ctx.shadowBlur = artW * 0.04;
-    ctx.shadowOffsetY = artW * 0.02;
-    quadPath(ctx, quad); ctx.fillStyle = '#0a0a0a'; ctx.fill();
-    ctx.restore();
-    const flat = renderFlatDevice(slot, frameType, dW * 1.6, (dW * 1.6) / aspect);
-    drawImageQuad(ctx, flat, quad);
-    // Thumb in front
-    ctx.drawImage(asset.front, ox, oy, artW, artH);
+    const def = HAND_DEF;
+    // Fit the whole hand art inside the canvas (by width and height), then center
+    const scale = (mockup.scale || 1.0);
+    const artScale = Math.min((canvasH * 0.96) / def.vb[1], (canvasW * 0.98) / def.vb[0]) * scale;
+    const artW = def.vb[0] * artScale, artH = def.vb[1] * artScale;
+    const ox = cx - artW / 2, oy = cy - artH / 2;
+    const quad = def.screenQuad.map(p => [ox + p[0] * artScale, oy + p[1] * artScale]);
+
+    // 1) Screenshot warped into the screen hole (behind the photo)
+    const sAspect = quadAspect(def.screenQuad);
+    const sw = 720, sh = Math.max(2, Math.round(sw / sAspect));
+    const sc = document.createElement('canvas');
+    sc.width = sw; sc.height = sh;
+    const sx = sc.getContext('2d');
+    sx.imageSmoothingQuality = 'high';
+    if (slot.screenshot) {
+      drawFittedImage(sx, slot.screenshot, 0, 0, sw, sh, slot.screenshotFit);
+    } else {
+      sx.fillStyle = '#0a0a0a'; sx.fillRect(0, 0, sw, sh);
+    }
+    drawImageQuad(ctx, sc, quad);
+
+    // 2) The hand+phone photo on top (its opaque frame & fingers overlay the screenshot)
+    ctx.drawImage(asset.img, ox, oy, artW, artH);
     return;
   }
 }
@@ -2141,7 +2129,7 @@ function renderSlot(slot, storeKey, targetW, targetH) {
   // 3-4. Draw the device — either a mockup (3D-angled / hand) or the flat frame
   const cfg = STORE_CONFIGS[storeKey];
   if (design.mockup) {
-    drawMockup(ctx, slot, cfg.frame, design.mockup, cx, cy, dfW, dfH, aspect);
+    drawMockup(ctx, slot, cfg.frame, design.mockup, cx, cy, dfW, dfH, aspect, targetW, targetH);
   } else {
     ctx.save();
     ctx.translate(cx, cy);
